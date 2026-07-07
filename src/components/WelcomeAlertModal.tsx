@@ -1,4 +1,4 @@
-import { ShoppingBag, Sparkles, X } from "lucide-react";
+import { ShoppingBag, X } from "lucide-react";
 
 interface WelcomeAlertModalProps {
   open: boolean;
