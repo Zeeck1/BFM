@@ -1,7 +1,8 @@
 // src/components/AuthModal.tsx
 
 import { useState } from "react";
-import { AlertCircle, Loader2, ShoppingBag, X } from "lucide-react";
+import { AlertCircle, Loader2, X } from "lucide-react";
+import { BrandLogo } from "./BrandLogo";
 import { signInWithGoogle } from "../lib/auth";
 
 interface AuthModalProps {
@@ -65,9 +66,7 @@ export function AuthModal({ open, onClose }: AuthModalProps) {
             <X className="h-4 w-4" />
           </button>
 
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-slate-900">
-            <ShoppingBag className="h-5 w-5 text-white" strokeWidth={2.5} />
-          </div>
+          <BrandLogo className="h-11 w-11 rounded-xl" />
           <h2 className="mt-3 text-lg font-bold text-slate-900">Welcome to BFM</h2>
           <p className="mt-1 text-sm text-slate-500">
             Sign in to save links and request purchases.

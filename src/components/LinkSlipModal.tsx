@@ -1,7 +1,8 @@
 // src/components/LinkSlipModal.tsx
 
 import { useRef, useState } from "react";
-import { Download, Loader2, ShoppingBag, X } from "lucide-react";
+import { Download, Loader2, X } from "lucide-react";
+import { BrandLogo } from "./BrandLogo";
 import { downloadElementAsPng, linkSlipFilename } from "../lib/linkSlip";
 import { formatMMK, formatTHB } from "../lib/utils";
 import type { SavedLink } from "../types";
@@ -96,9 +97,7 @@ export function LinkSlipModal({ items, open, onClose }: LinkSlipModalProps) {
             {/* Slip header */}
             <div className="bg-gradient-to-br from-indigo-600 via-violet-600 to-purple-700 px-5 py-4 text-white">
               <div className="flex items-center gap-2.5">
-                <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-white/15">
-                  <ShoppingBag className="h-5 w-5" strokeWidth={2.5} />
-                </div>
+                <BrandLogo className="h-10 w-10 rounded-xl bg-white/90 p-1" />
                 <div>
                   <p className="text-xs font-semibold uppercase tracking-widest text-indigo-200">
                     Buy For Me

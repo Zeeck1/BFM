@@ -23,6 +23,7 @@ export interface SharedList {
   items: SavedLink[];
   items_hash?: string;
   owner_name?: string;
+  owner_avatar?: string | null;
   created_at: string;
   expires_at: string;
 }
@@ -47,6 +48,7 @@ export async function getOrCreateSharedList(
   userId: string,
   ownerName: string,
   items: SavedLink[],
+  ownerAvatar?: string | null,
 ): Promise<SharedList | null> {
   const hash = await itemsHash(items.map((i) => i.id));
 
@@ -62,7 +64,19 @@ export async function getOrCreateSharedList(
     .maybeSingle();
 
   if (existing) {
-    return toSharedList(existing as Record<string, unknown>);
+    // Update owner profile fields in place if they've changed.
+    const row = existing as Record<string, unknown>;
+    const nameChanged = row.owner_name !== ownerName;
+    const avatarChanged = ownerAvatar !== undefined && row.owner_avatar !== ownerAvatar;
+    if (nameChanged || avatarChanged) {
+      const patch: Record<string, unknown> = {};
+      if (nameChanged) patch.owner_name = ownerName;
+      if (avatarChanged) patch.owner_avatar = ownerAvatar ?? null;
+      await supabase.from("shared_lists").update(patch).eq("id", row.id);
+      if (nameChanged) row.owner_name = ownerName;
+      if (avatarChanged) row.owner_avatar = ownerAvatar ?? null;
+    }
+    return toSharedList(row);
   }
 
   // None found — create new
@@ -77,6 +91,7 @@ export async function getOrCreateSharedList(
       items: snapshot,
       items_hash: hash,
       owner_name: ownerName,
+      owner_avatar: ownerAvatar ?? null,
       expires_at: expiresAt(),
     })
     .select()
@@ -200,6 +215,26 @@ export async function removeItemsFromSharedLists(
       .delete()
       .in("id", toDelete);
     if (e) console.error("[shareList] delete empty lists failed:", e.message);
+  }
+}
+
+/**
+ * Push an updated owner name and/or avatar into all of the user's non-expired shared lists.
+ * Call this after a successful profile update.
+ */
+export async function syncOwnerProfileInSharedLists(
+  userId: string,
+  newName: string,
+  newAvatar: string | null,
+): Promise<void> {
+  const { error } = await supabase
+    .from("shared_lists")
+    .update({ owner_name: newName, owner_avatar: newAvatar })
+    .eq("user_id", userId)
+    .gt("expires_at", new Date().toISOString());
+
+  if (error) {
+    console.error("[shareList] syncOwnerProfile failed:", error.message);
   }
 }
 

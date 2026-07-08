@@ -6,6 +6,7 @@ import type { User as SupabaseUser } from "@supabase/supabase-js";
 import { userAvatarUrl, userDisplayName } from "../lib/auth";
 import { supabase } from "../lib/supabase";
 import { AppTabs } from "./AppTabs";
+import { BrandLogo } from "./BrandLogo";
 import { ExchangeRateWidget } from "./ExchangeRateWidget";
 
 interface NavbarProps {
@@ -27,12 +28,7 @@ export function Navbar({ user, onAuthClick, wishlistCount = 0 }: NavbarProps) {
       <div className="mx-auto flex h-14 max-w-7xl items-center justify-between gap-2 px-3 sm:px-4 lg:grid lg:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] lg:items-center lg:gap-3 lg:px-6">
         {/* Logo */}
         <Link to="/" className="flex min-w-0 shrink-0 items-center gap-2 select-none lg:justify-self-start">
-          <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-indigo-600">
-            <svg className="h-4 w-4 text-white" viewBox="0 0 20 20" fill="currentColor">
-              <path d="M3 3a1 1 0 000 2h1.22l.305 1.222a.997.997 0 00.01.042l1.358 5.43-.893.892C3.74 13.846 4.632 15 6.414 15H15a1 1 0 000-2H6.414l1-1H14a1 1 0 00.894-.553l3-6A1 1 0 0017 5H6.28l-.31-1.243A1 1 0 005 3H3z" />
-              <path d="M16 16.5a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0zM6.5 18a1.5 1.5 0 100-3 1.5 1.5 0 000 3z" />
-            </svg>
-          </div>
+          <BrandLogo className="h-8 w-8 rounded-lg" />
           <div className="hidden min-w-0 leading-none sm:block">
             <p className="truncate text-sm font-bold tracking-tight text-slate-900">Buy For Me</p>
             <p className="text-[9px] font-medium uppercase tracking-[0.15em] text-slate-400">
@@ -50,21 +46,27 @@ export function Navbar({ user, onAuthClick, wishlistCount = 0 }: NavbarProps) {
 
           {user ? (
             <div className="flex items-center gap-1 sm:gap-1.5">
-              <span className="hidden max-w-[100px] truncate text-xs font-semibold text-slate-700 xl:inline xl:max-w-[120px]">
-                {displayName}
-              </span>
-              {avatarUrl ? (
-                <img
-                  src={avatarUrl}
-                  alt={displayName}
-                  referrerPolicy="no-referrer"
-                  className="h-7 w-7 shrink-0 rounded-full object-cover ring-2 ring-indigo-100"
-                />
-              ) : (
-                <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-indigo-600 text-[11px] font-bold text-white">
-                  {displayName.charAt(0).toUpperCase()}
-                </div>
-              )}
+              <Link
+                to="/profile"
+                title="Edit profile"
+                className="flex min-w-0 items-center gap-1.5 rounded-full py-0.5 pl-1 pr-1.5 transition hover:bg-slate-100"
+              >
+                <span className="hidden max-w-[100px] truncate text-xs font-semibold text-slate-700 xl:inline xl:max-w-[120px]">
+                  {displayName}
+                </span>
+                {avatarUrl ? (
+                  <img
+                    src={avatarUrl}
+                    alt={displayName}
+                    referrerPolicy="no-referrer"
+                    className="h-7 w-7 shrink-0 rounded-full object-cover ring-2 ring-indigo-100"
+                  />
+                ) : (
+                  <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-indigo-600 text-[11px] font-bold text-white">
+                    {displayName.charAt(0).toUpperCase()}
+                  </div>
+                )}
+              </Link>
               <button
                 onClick={handleSignOut}
                 title="Sign out"

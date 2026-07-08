@@ -7,6 +7,7 @@ import {
   MessageCircle,
   MoreHorizontal,
   StickyNote,
+  Tag,
   Trash2,
 } from "lucide-react";
 import { openBuyForMeOnMessenger } from "../lib/messenger";
@@ -20,6 +21,7 @@ interface SavedItemCardProps {
   selected: boolean;
   onToggleSelect: () => void;
   onEditNotes: () => void;
+  onEditPrice: () => void;
   onDelete: () => void;
 }
 
@@ -28,6 +30,7 @@ export function SavedItemCard({
   selected,
   onToggleSelect,
   onEditNotes,
+  onEditPrice,
   onDelete,
 }: SavedItemCardProps) {
   const [imgError, setImgError] = useState(false);
@@ -100,6 +103,14 @@ export function SavedItemCard({
               >
                 <StickyNote className="h-4 w-4 shrink-0 text-amber-400" />
                 {item.notes?.trim() ? "Edit notes" : "Add notes"}
+              </button>
+              <button
+                type="button"
+                onClick={() => { setMenuOpen(false); onEditPrice(); }}
+                className="flex w-full items-center gap-2.5 px-3.5 py-2.5 text-sm text-slate-700 hover:bg-slate-50"
+              >
+                <Tag className="h-4 w-4 shrink-0 text-indigo-400" />
+                {item.price_mmk != null || item.price_thb != null ? "Edit price" : "Set price"}
               </button>
               <a
                 href={item.url}
@@ -181,16 +192,29 @@ export function SavedItemCard({
 
         <div className="mt-auto pt-1">
           {item.price_mmk != null ? (
-            <div>
+            <button
+              type="button"
+              onClick={onEditPrice}
+              className="text-left transition hover:opacity-70"
+              title="Edit price"
+            >
               <p className="text-sm font-bold text-slate-900">
                 {formatMMK(item.price_mmk)}
               </p>
               {item.price_thb != null && (
                 <p className="text-[11px] text-slate-400">{formatTHB(item.price_thb)}</p>
               )}
-            </div>
+            </button>
           ) : (
-            <p className="text-[11px] italic text-slate-400">Price unknown</p>
+            <button
+              type="button"
+              onClick={onEditPrice}
+              className="flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[11px] italic text-slate-400 transition hover:bg-indigo-50 hover:text-indigo-500 hover:not-italic"
+              title="Set price"
+            >
+              <Tag className="h-3 w-3 shrink-0" />
+              Set price
+            </button>
           )}
         </div>
       </div>

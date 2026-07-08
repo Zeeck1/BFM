@@ -7,23 +7,99 @@ interface QRCodeModalProps {
   onClose: () => void;
   shareUrl: string;
   ownerName: string;
+  avatarUrl?: string | null;
   itemCount: number;
   expiresIn?: string;
 }
 
-export function QRCodeModal({ open, onClose, shareUrl, ownerName, itemCount, expiresIn }: QRCodeModalProps) {
+function loadImage(src: string): Promise<HTMLImageElement> {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.crossOrigin = "anonymous";
+    img.referrerPolicy = "no-referrer";
+    img.onload = () => resolve(img);
+    img.onerror = reject;
+    img.src = src;
+  });
+}
+
+function drawAvatarInQr(canvas: HTMLCanvasElement, image: HTMLImageElement) {
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return;
+
+  const center = canvas.width / 2;
+  const backingSize = Math.round(canvas.width * 0.27);
+  const avatarSize = Math.round(canvas.width * 0.2);
+  const backingX = center - backingSize / 2;
+  const avatarX = center - avatarSize / 2;
+
+  ctx.save();
+  ctx.fillStyle = "#ffffff";
+  ctx.shadowColor = "rgba(15, 23, 42, 0.18)";
+  ctx.shadowBlur = 10;
+  ctx.shadowOffsetY = 2;
+  ctx.roundRect(backingX, backingX, backingSize, backingSize, 18);
+  ctx.fill();
+  ctx.restore();
+
+  ctx.save();
+  ctx.beginPath();
+  ctx.arc(center, center, avatarSize / 2, 0, Math.PI * 2);
+  ctx.clip();
+  ctx.drawImage(image, avatarX, avatarX, avatarSize, avatarSize);
+  ctx.restore();
+
+  ctx.save();
+  ctx.strokeStyle = "#ffffff";
+  ctx.lineWidth = 4;
+  ctx.beginPath();
+  ctx.arc(center, center, avatarSize / 2, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.restore();
+}
+
+export function QRCodeModal({
+  open,
+  onClose,
+  shareUrl,
+  ownerName,
+  avatarUrl,
+  itemCount,
+  expiresIn,
+}: QRCodeModalProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [copied, setCopied] = useState(false);
 
   useEffect(() => {
     if (!open || !canvasRef.current || !shareUrl) return;
 
-    QRCode.toCanvas(canvasRef.current, shareUrl, {
-      width: 280,
-      margin: 2,
-      color: { dark: "#1e293b", light: "#ffffff" },
-    });
-  }, [open, shareUrl]);
+    let cancelled = false;
+    const canvas = canvasRef.current;
+
+    async function renderQr() {
+      await QRCode.toCanvas(canvas, shareUrl, {
+        width: 280,
+        margin: 2,
+        errorCorrectionLevel: "H",
+        color: { dark: "#1e293b", light: "#ffffff" },
+      });
+
+      if (!cancelled && avatarUrl) {
+        try {
+          const avatar = await loadImage(avatarUrl);
+          if (!cancelled) drawAvatarInQr(canvas, avatar);
+        } catch {
+          // If the provider blocks image loading, keep a clean QR without the avatar.
+        }
+      }
+    }
+
+    void renderQr();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [open, shareUrl, avatarUrl]);
 
   if (!open) return null;
 

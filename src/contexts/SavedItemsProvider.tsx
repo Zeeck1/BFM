@@ -14,12 +14,21 @@ import {
 import { supabase } from "../lib/supabase";
 import type { ProductPreview, SavedLink } from "../types";
 
+function normalizeSavedLink(row: SavedLink): SavedLink {
+  return {
+    ...row,
+    price_thb: row.price_thb == null ? undefined : Number(row.price_thb),
+    price_mmk: row.price_mmk == null ? undefined : Number(row.price_mmk),
+  };
+}
+
 interface SavedItemsContextValue {
   items: SavedLink[];
   loading: boolean;
   saving: boolean;
   save: (preview: ProductPreview, exchangeRate: number) => Promise<SavedLink | null>;
   updateNotes: (id: string, notes: string) => Promise<boolean>;
+  updatePrice: (id: string, price_mmk: number | null, price_thb: number | null) => Promise<boolean>;
   remove: (id: string) => Promise<boolean>;
   removeMany: (ids: string[]) => Promise<boolean>;
   refetch: () => Promise<void>;
@@ -49,7 +58,7 @@ export function SavedItemsProvider({
       .select("id,user_id,url,title,image_url,price_thb,price_mmk,site_name,notes,created_at")
       .eq("user_id", userId)
       .order("created_at", { ascending: false });
-    setItems((data ?? []) as SavedLink[]);
+    setItems(((data ?? []) as SavedLink[]).map(normalizeSavedLink));
     setLoading(false);
   }, [userId]);
 
@@ -92,7 +101,7 @@ export function SavedItemsProvider({
       setSaving(false);
       if (error || !data) return null;
 
-      const saved = data as SavedLink;
+      const saved = normalizeSavedLink(data as SavedLink);
       setItems((prev) => {
         const exists = prev.findIndex((i) => i.id === saved.id);
         if (exists >= 0) {
@@ -103,8 +112,38 @@ export function SavedItemsProvider({
         return [saved, ...prev];
       });
 
-      await syncSavedItemInSharedLists(userId, saved);
+      try {
+        await syncSavedItemInSharedLists(userId, saved);
+      } catch (err) {
+        console.error("[useSavedItems] sync saved item failed:", err);
+      }
       return saved;
+    },
+    [userId],
+  );
+
+  const updatePrice = useCallback(
+    async (id: string, price_mmk: number | null, price_thb: number | null): Promise<boolean> => {
+      const { data, error } = await supabase
+        .from("saved_links")
+        .update({ price_mmk, price_thb })
+        .eq("id", id)
+        .select()
+        .single();
+
+      if (error || !data) return false;
+
+      const updated = normalizeSavedLink(data as SavedLink);
+      setItems((prev) => prev.map((item) => (item.id === id ? updated : item)));
+
+      if (userId) {
+        try {
+          await syncSavedItemInSharedLists(userId, updated);
+        } catch (err) {
+          console.error("[useSavedItems] sync price failed:", err);
+        }
+      }
+      return true;
     },
     [userId],
   );
@@ -160,11 +199,15 @@ export function SavedItemsProvider({
 
       if (error || !data) return false;
 
-      const updated = data as SavedLink;
+      const updated = normalizeSavedLink(data as SavedLink);
       setItems((prev) => prev.map((item) => (item.id === id ? updated : item)));
 
       if (userId) {
-        await syncSavedItemInSharedLists(userId, updated);
+        try {
+          await syncSavedItemInSharedLists(userId, updated);
+        } catch (err) {
+          console.error("[useSavedItems] sync notes failed:", err);
+        }
       }
       return true;
     },
@@ -178,11 +221,12 @@ export function SavedItemsProvider({
       saving,
       save,
       updateNotes,
+      updatePrice,
       remove,
       removeMany,
       refetch: fetchItems,
     }),
-    [items, loading, saving, save, updateNotes, remove, removeMany, fetchItems],
+    [items, loading, saving, save, updateNotes, updatePrice, remove, removeMany, fetchItems],
   );
 
   return <SavedItemsContext.Provider value={value}>{children}</SavedItemsContext.Provider>;

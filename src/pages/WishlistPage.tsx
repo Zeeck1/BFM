@@ -16,13 +16,16 @@ import {
 import type { AppOutletContext } from "../components/AppLayout";
 import { LinkSlipModal } from "../components/LinkSlipModal";
 import { ProductNotesModal } from "../components/ProductNotesModal";
+import { ProductPriceModal } from "../components/ProductPriceModal";
 import { QRCodeModal } from "../components/QRCodeModal";
 import { SavedItemCard } from "../components/SavedItemCard";
 import { useSavedItems } from "../contexts/SavedItemsProvider";
-import { userDisplayName } from "../lib/auth";
+import { useExchangeRate } from "../hooks/useExchangeRate";
+import { userAvatarUrl, userDisplayName } from "../lib/auth";
 import { openBuyForMeOnMessenger } from "../lib/messenger";
 import { matchesSavedLinkSearch } from "../lib/savedLinkSearch";
 import { getOrCreateSharedList, shareUrl as buildShareUrl, timeRemaining } from "../lib/shareList";
+import { formatMMK, formatTHB } from "../lib/utils";
 import type { SavedLink } from "../types";
 
 function EmptyWishlist({ loggedIn, onSignIn }: { loggedIn: boolean; onSignIn: () => void }) {
@@ -88,10 +91,12 @@ function NoSearchResults({ query, onClear }: { query: string; onClear: () => voi
 
 export function WishlistPage() {
   const { user, onSignIn } = useOutletContext<AppOutletContext>();
+  const { rate } = useExchangeRate();
   const [wishlistSearch, setWishlistSearch] = useState("");
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [slipOpen, setSlipOpen] = useState(false);
   const [notesItem, setNotesItem] = useState<SavedLink | null>(null);
+  const [priceItem, setPriceItem] = useState<SavedLink | null>(null);
   const [qrOpen, setQrOpen] = useState(false);
   const [qrShareUrl, setQrShareUrl] = useState("");
   const [qrExpiresIn, setQrExpiresIn] = useState("");
@@ -100,7 +105,7 @@ export function WishlistPage() {
   const [removing, setRemoving] = useState(false);
   const searchRef = useRef<HTMLInputElement>(null);
 
-  const { items, loading, updateNotes, remove, removeMany } = useSavedItems();
+  const { items, loading, updateNotes, updatePrice, remove, removeMany } = useSavedItems();
 
   const filteredItems = useMemo(
     () => items.filter((item) => matchesSavedLinkSearch(item, wishlistSearch)),
@@ -111,6 +116,20 @@ export function WishlistPage() {
     () => filteredItems.filter((item) => selectedIds.has(item.id)),
     [filteredItems, selectedIds],
   );
+
+  const totalSummary = useMemo(() => {
+    const pricedItems = filteredItems.filter((item) => item.price_mmk != null || item.price_thb != null);
+    const totalMmk = pricedItems.reduce((sum, item) => {
+      if (item.price_mmk != null) return sum + item.price_mmk;
+      return sum + (item.price_thb ?? 0) * rate;
+    }, 0);
+    const totalThb = pricedItems.reduce((sum, item) => {
+      if (item.price_thb != null) return sum + item.price_thb;
+      return sum + (item.price_mmk ?? 0) / rate;
+    }, 0);
+
+    return { pricedCount: pricedItems.length, totalMmk, totalThb };
+  }, [filteredItems, rate]);
 
   const allFilteredSelected =
     filteredItems.length > 0 && filteredItems.every((item) => selectedIds.has(item.id));
@@ -133,7 +152,8 @@ export function WishlistPage() {
     if (!user || selectedItems.length === 0) return;
     setQrLoading(true);
     const name = userDisplayName(user);
-    const shared = await getOrCreateSharedList(user.id, name, selectedItems);
+    const avatar = userAvatarUrl(user);
+    const shared = await getOrCreateSharedList(user.id, name, selectedItems, avatar);
     setQrLoading(false);
     if (shared) {
       setQrShareUrl(buildShareUrl(shared.id));
@@ -203,7 +223,7 @@ export function WishlistPage() {
             </div>
 
             {hasItems && (
-              <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+              <div className="hidden flex-col gap-2 sm:flex sm:flex-row sm:items-center">
                 {filteredItems.length > 0 && (
                   <button
                     type="button"
@@ -242,6 +262,88 @@ export function WishlistPage() {
         </div>
       </header>
 
+      {hasItems && !loading && (
+        <section className="border-b border-slate-200/80 bg-white/70">
+          <div className="mx-auto max-w-7xl px-4 py-3 sm:px-6">
+            <div className="rounded-2xl border border-indigo-100 bg-indigo-50/70 px-4 py-3 shadow-sm">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-wide text-indigo-500">
+                    Wishlist total
+                  </p>
+                  <p className="mt-0.5 text-xs text-slate-500">
+                    {totalSummary.pricedCount > 0
+                      ? `${totalSummary.pricedCount} priced item${totalSummary.pricedCount !== 1 ? "s" : ""}`
+                      : "Add prices to calculate your total"}
+                  </p>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2 sm:min-w-80">
+                  <div className="rounded-xl bg-white px-3 py-2 ring-1 ring-indigo-100">
+                    <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">
+                      Est. MMK total
+                    </p>
+                    <p className="mt-0.5 text-sm font-bold text-slate-900">
+                      {formatMMK(totalSummary.totalMmk)}
+                    </p>
+                  </div>
+                  <div className="rounded-xl bg-white px-3 py-2 ring-1 ring-indigo-100">
+                    <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">
+                      Est. THB total
+                    </p>
+                    <p className="mt-0.5 text-sm font-bold text-slate-900">
+                      {formatTHB(totalSummary.totalThb)}
+                    </p>
+                  </div>
+                </div>
+              </div>
+              <p className="mt-2 text-[11px] text-slate-400">
+                Est. rate used: 1 THB = {rate.toLocaleString()} MMK
+              </p>
+              <p className="mt-1 text-[11px] text-slate-400">
+                Prices may change depending on shipping costs and other updates.
+              </p>
+            </div>
+          </div>
+        </section>
+      )}
+
+      {/* Mobile: select all + search below wishlist total */}
+      {hasItems && (
+        <section className="border-b border-slate-200/80 bg-white px-4 py-3 sm:hidden">
+          <div className="mx-auto flex max-w-7xl flex-col gap-2">
+            {filteredItems.length > 0 && (
+              <button
+                type="button"
+                onClick={toggleSelectAll}
+                className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-xs font-semibold text-slate-600 shadow-sm hover:bg-slate-50"
+              >
+                {allFilteredSelected ? "Deselect all" : "Select all"}
+              </button>
+            )}
+            <div className="relative w-full">
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+              <input
+                type="search"
+                value={wishlistSearch}
+                onChange={(e) => setWishlistSearch(e.target.value)}
+                placeholder="Search saved links…"
+                className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2.5 pl-10 pr-9 text-sm text-slate-800 placeholder-slate-400 outline-none transition focus:border-indigo-300 focus:bg-white focus:ring-2 focus:ring-indigo-500/10"
+              />
+              {wishlistSearch && (
+                <button
+                  type="button"
+                  onClick={() => setWishlistSearch("")}
+                  className="absolute right-2.5 top-1/2 flex h-5 w-5 -translate-y-1/2 items-center justify-center rounded-full text-slate-400 hover:bg-slate-200/60 hover:text-slate-600"
+                >
+                  <X className="h-3 w-3" />
+                </button>
+              )}
+            </div>
+          </div>
+        </section>
+      )}
+
       {/* Grid */}
       <section className="mx-auto max-w-7xl px-4 py-5 sm:px-6 sm:py-6">
         {loading ? (
@@ -263,6 +365,7 @@ export function WishlistPage() {
                 selected={selectedIds.has(item.id)}
                 onToggleSelect={() => toggleSelect(item.id)}
                 onEditNotes={() => setNotesItem(item)}
+                onEditPrice={() => setPriceItem(item)}
                 onDelete={() => {
                   remove(item.id);
                   setSelectedIds((prev) => {
@@ -351,6 +454,12 @@ export function WishlistPage() {
       )}
 
       <LinkSlipModal items={selectedItems} open={slipOpen} onClose={() => setSlipOpen(false)} />
+      <ProductPriceModal
+        item={priceItem}
+        open={priceItem != null}
+        onClose={() => setPriceItem(null)}
+        onSave={(id, price_mmk, price_thb) => updatePrice(id, price_mmk, price_thb)}
+      />
       <ProductNotesModal
         item={notesItem}
         open={notesItem != null}
@@ -362,6 +471,7 @@ export function WishlistPage() {
         onClose={() => setQrOpen(false)}
         shareUrl={qrShareUrl}
         ownerName={user ? userDisplayName(user) : ""}
+        avatarUrl={user ? userAvatarUrl(user) : null}
         itemCount={selectedItems.length}
         expiresIn={qrExpiresIn}
       />

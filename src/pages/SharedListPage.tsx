@@ -6,15 +6,46 @@ import {
   Heart,
   Loader2,
   MessageCircle,
-  ShoppingBag,
   Sparkles,
 } from "lucide-react";
+import { BrandLogo } from "../components/BrandLogo";
 import { SiteAvatar } from "../components/SiteAvatar";
 import { ImageLightbox } from "../components/ImageLightbox";
 import { fetchSharedList, timeRemaining, type SharedList } from "../lib/shareList";
 import { buildBuyForMeMessengerUrl } from "../lib/messenger";
 import { formatMMK, formatTHB } from "../lib/utils";
 import type { SavedLink } from "../types";
+
+function OwnerAvatar({
+  avatarUrl,
+  initial,
+  name,
+}: {
+  avatarUrl: string | null;
+  initial: string;
+  name: string;
+}) {
+  const [failed, setFailed] = useState(false);
+  const showImg = Boolean(avatarUrl && !failed);
+
+  return (
+    <div className="rounded-full bg-white/10 p-1 ring-2 ring-white/20">
+      {showImg ? (
+        <img
+          src={avatarUrl!}
+          alt={name}
+          referrerPolicy="no-referrer"
+          onError={() => setFailed(true)}
+          className="h-14 w-14 rounded-full object-cover sm:h-16 sm:w-16"
+        />
+      ) : (
+        <div className="flex h-14 w-14 items-center justify-center rounded-full bg-gradient-to-br from-indigo-500 to-indigo-700 text-2xl font-bold text-white sm:h-16 sm:w-16 sm:text-3xl">
+          {initial}
+        </div>
+      )}
+    </div>
+  );
+}
 
 function SharedItemRow({ item, index }: { item: SavedLink; index: number }) {
   const [imgError, setImgError] = useState(false);
@@ -225,6 +256,7 @@ export function SharedListPage() {
   }
 
   const ownerLabel = list.owner_name ? `${list.owner_name}'s Favourites` : "Shared Favourites";
+  const ownerInitial = list.owner_name?.trim().charAt(0).toUpperCase() ?? "?";
   const allMessengerUrl = buildBuyForMeMessengerUrl(list.items, { fromQrReferral: true });
   const showStickyBar = list.items.length > 0;
 
@@ -238,9 +270,7 @@ export function SharedListPage() {
           {/* Brand */}
           <div className="mb-6 flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-indigo-500">
-                <ShoppingBag className="h-4 w-4 text-white" />
-              </div>
+              <BrandLogo className="h-9 w-9 rounded-lg bg-white/90 p-1" />
               <span className="text-xs font-semibold uppercase tracking-widest text-slate-400">
                 Buy For Me
               </span>
@@ -251,21 +281,32 @@ export function SharedListPage() {
             </span>
           </div>
 
-          {/* Title */}
-          <div className="space-y-2">
-            <div className="inline-flex items-center gap-1.5 rounded-full bg-indigo-500/20 px-2.5 py-1 text-[11px] font-semibold text-indigo-200">
-              <Sparkles className="h-3 w-3" />
-              Shared wishlist
+          {/* Owner + Title */}
+          <div className="flex items-center gap-4">
+            {/* Avatar */}
+            <div className="shrink-0">
+              <OwnerAvatar
+                avatarUrl={list.owner_avatar ?? null}
+                initial={ownerInitial}
+                name={list.owner_name ?? ""}
+              />
             </div>
-            <h1 className="text-2xl font-extrabold tracking-tight text-white sm:text-3xl">
-              {ownerLabel}
-            </h1>
-            <p className="text-sm text-slate-400">
-              {list.items.length} product{list.items.length !== 1 ? "s" : ""} picked for you
-              {pricedCount > 0 && totalMmk > 0 && (
-                <span className="text-slate-300"> · est. {formatMMK(totalMmk)} total</span>
-              )}
-            </p>
+
+            <div className="min-w-0 space-y-1.5">
+              <div className="inline-flex items-center gap-1.5 rounded-full bg-indigo-500/20 px-2.5 py-1 text-[11px] font-semibold text-indigo-200">
+                <Sparkles className="h-3 w-3" />
+                Shared wishlist
+              </div>
+              <h1 className="text-2xl font-extrabold tracking-tight text-white sm:text-3xl">
+                {ownerLabel}
+              </h1>
+              <p className="text-sm text-slate-400">
+                {list.items.length} product{list.items.length !== 1 ? "s" : ""} picked for you
+                {pricedCount > 0 && totalMmk > 0 && (
+                  <span className="text-slate-300"> · est. {formatMMK(totalMmk)} total</span>
+                )}
+              </p>
+            </div>
           </div>
         </div>
       </header>
@@ -305,17 +346,6 @@ export function SharedListPage() {
           </div>
         </div>
       )}
-
-      {/* Footer */}
-      <footer className="border-t border-slate-200/60 bg-white py-5 text-center">
-        <Link
-          to="/"
-          className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-500 transition hover:text-indigo-600"
-        >
-          <ShoppingBag className="h-3.5 w-3.5" />
-          Create your own wishlist at Buy For Me
-        </Link>
-      </footer>
     </PageShell>
   );
 }

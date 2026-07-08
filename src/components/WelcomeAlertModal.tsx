@@ -1,4 +1,5 @@
-import { ShoppingBag, X } from "lucide-react";
+import { X } from "lucide-react";
+import { BrandLogo } from "./BrandLogo";
 
 interface WelcomeAlertModalProps {
   open: boolean;
@@ -27,9 +28,7 @@ export function WelcomeAlertModal({ open, onClose }: WelcomeAlertModalProps) {
             <X className="h-4 w-4" />
           </button>
 
-          <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-indigo-500">
-            <ShoppingBag className="h-5 w-5 text-white" strokeWidth={2.5} />
-          </div>
+          <BrandLogo className="h-12 w-12 rounded-xl" />
           <div className="mt-4 inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/5 px-2.5 py-1 text-[11px] font-medium text-indigo-200">
             
             Welcome to Buy For Me
