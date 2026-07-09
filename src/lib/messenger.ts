@@ -3,14 +3,9 @@
 import { formatMMK } from "./utils";
 import type { SavedLink } from "../types";
 
-/** Your Messenger page — e.g. https://m.me/yourpage */
 function messengerPageUrl(): string {
   const configured = (import.meta.env.VITE_MESSENGER_PAGE_URL as string | undefined)?.trim();
   if (configured) return configured.replace(/\/$/, "");
-
-  console.warn(
-    "[BFM] VITE_MESSENGER_PAGE_URL is not set. Add your m.me link to .env",
-  );
   return "";
 }
 
@@ -21,7 +16,6 @@ function facebookPageUrl(): string {
 }
 
 function normalizeMessengerUrl(base: string): string {
-  // facebook.com/PageName → m.me/PageName
   const pageMatch = base.match(/facebook\.com\/([^/?#]+)/i);
   if (
     pageMatch &&
@@ -54,19 +48,6 @@ function hasConfiguredMessengerTarget(base: string): boolean {
   }
 }
 
-function firstShareableUrl(items: SavedLink[]): string {
-  const firstValid = items.find((item) => /^https?:\/\//i.test(item.url));
-  return firstValid?.url ?? facebookPageUrl();
-}
-
-function buildFacebookShareUrl(message: string, shareUrl: string): string {
-  const params = new URLSearchParams({
-    u: shareUrl,
-    quote: message,
-  });
-  return `https://www.facebook.com/sharer/sharer.php?${params.toString()}`;
-}
-
 function buildBuyForMeMessage(items: SavedLink[], fromQrReferral = false): string {
   const header =
     items.length === 1
@@ -90,25 +71,69 @@ function isMobileDevice(): boolean {
   return /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent);
 }
 
-/** Build a Messenger URL with a pre-filled order message. */
+async function copyToClipboard(text: string): Promise<boolean> {
+  try {
+    await navigator.clipboard.writeText(text);
+    return true;
+  } catch {
+    try {
+      const textarea = document.createElement("textarea");
+      textarea.value = text;
+      textarea.style.position = "fixed";
+      textarea.style.left = "-9999px";
+      document.body.appendChild(textarea);
+      textarea.select();
+      document.execCommand("copy");
+      document.body.removeChild(textarea);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+}
+
+function showCopiedToast() {
+  const existing = document.getElementById("bfm-clipboard-toast");
+  if (existing) existing.remove();
+
+  const toast = document.createElement("div");
+  toast.id = "bfm-clipboard-toast";
+  Object.assign(toast.style, {
+    position: "fixed",
+    bottom: "24px",
+    left: "50%",
+    transform: "translateX(-50%)",
+    background: "#1e293b",
+    color: "#fff",
+    padding: "12px 20px",
+    borderRadius: "12px",
+    fontSize: "14px",
+    fontWeight: "600",
+    zIndex: "99999",
+    boxShadow: "0 8px 24px rgba(0,0,0,0.25)",
+    textAlign: "center",
+    maxWidth: "340px",
+    lineHeight: "1.4",
+  });
+  toast.textContent = "Message copied! Paste it in the Messenger chat.";
+  document.body.appendChild(toast);
+  setTimeout(() => toast.remove(), 5000);
+}
+
+function getMessengerTarget(): string {
+  const raw = messengerPageUrl();
+  if (!raw) return "";
+  return normalizeMessengerUrl(raw);
+}
+
+/** Build a Messenger URL for `<a href>` usage (shared list page, etc). */
 export function buildBuyForMeMessengerUrl(
-  items: SavedLink[],
-  options?: { fromQrReferral?: boolean },
+  _items: SavedLink[],
+  _options?: { fromQrReferral?: boolean },
 ): string {
-  const base = normalizeMessengerUrl(messengerPageUrl());
-  const hasTarget = hasConfiguredMessengerTarget(base);
-
-  if (items.length === 0) {
-    return hasTarget ? base : facebookPageUrl();
-  }
-
-  const message = buildBuyForMeMessage(items, options?.fromQrReferral ?? false);
-  if (!hasTarget) {
-    return buildFacebookShareUrl(message, firstShareableUrl(items));
-  }
-
-  const encoded = encodeURIComponent(message);
-  return `${base}${base.includes("?") ? "&" : "?"}text=${encoded}`;
+  const target = getMessengerTarget();
+  const hasTarget = hasConfiguredMessengerTarget(target);
+  return hasTarget ? target : facebookPageUrl();
 }
 
 /** Open Messenger with the buy-for-me message for the given items. */
@@ -116,31 +141,44 @@ export function openBuyForMeOnMessenger(items: SavedLink[]): void {
   if (items.length === 0) return;
 
   const message = buildBuyForMeMessage(items);
-  const shareUrl = firstShareableUrl(items);
-  const messengerUrl = buildBuyForMeMessengerUrl(items);
-  const fallbackShareUrl = buildFacebookShareUrl(message, shareUrl);
-  const hasMessengerTarget = hasConfiguredMessengerTarget(normalizeMessengerUrl(messengerPageUrl()));
+  const target = getMessengerTarget();
+  const hasTarget = hasConfiguredMessengerTarget(target);
+  const destination = hasTarget ? target : facebookPageUrl();
 
-  // If Messenger page is not configured, fallback to Facebook share flow.
-  if (!hasMessengerTarget) {
-    window.open(fallbackShareUrl, "_blank", "noopener,noreferrer");
-    return;
-  }
-
-  // Mobile Messenger commonly drops the ?text= value from m.me links.
-  // Native share keeps the link and message payload for user-selected apps.
   if (isMobileDevice() && navigator.share) {
     void navigator
       .share({
         title: "Buy For Me request",
         text: message,
-        url: shareUrl,
       })
       .catch(() => {
-        window.open(messengerUrl, "_blank", "noopener,noreferrer");
+        void copyToClipboard(message).then((ok) => {
+          if (ok) showCopiedToast();
+          window.open(destination, "_blank", "noopener,noreferrer");
+        });
       });
     return;
   }
 
-  window.open(messengerUrl, "_blank", "noopener,noreferrer");
+  void copyToClipboard(message).then((ok) => {
+    if (ok) showCopiedToast();
+    window.open(destination, "_blank", "noopener,noreferrer");
+  });
+}
+
+/**
+ * For SharedListPage `<a>` links — copies message on click, returns href.
+ * Attach this as an onClick handler on the anchor element.
+ */
+export function copyMessengerMessageOnClick(
+  items: SavedLink[],
+  options?: { fromQrReferral?: boolean },
+): () => void {
+  return () => {
+    if (items.length === 0) return;
+    const message = buildBuyForMeMessage(items, options?.fromQrReferral ?? false);
+    void copyToClipboard(message).then((ok) => {
+      if (ok) showCopiedToast();
+    });
+  };
 }
