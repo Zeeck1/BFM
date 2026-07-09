@@ -24,6 +24,8 @@ export interface LazadaSearchResult extends LazadaPreviewResult {
 export interface LazadaSearchResponse {
   results: LazadaSearchResult[];
   has_more: boolean;
+  /** True when Lazada served a bot-check page instead of product data. */
+  blocked?: boolean;
 }
 
 export function isLazadaProductUrl(raw: string): boolean {
@@ -359,12 +361,6 @@ export async function searchLazadaProducts(
       headers: {
         ...buildHeaders(),
         Accept: "application/json,text/plain,*/*",
-        "Cache-Control": "no-cache",
-        Pragma: "no-cache",
-        "Sec-Fetch-Dest": "empty",
-        "Sec-Fetch-Mode": "cors",
-        "Sec-Fetch-Site": "same-origin",
-        "X-Requested-With": "XMLHttpRequest",
       },
       redirect: "follow",
     });
@@ -375,6 +371,14 @@ export async function searchLazadaProducts(
       .map(normalizeSearchItem)
       .filter((item): item is LazadaSearchResult => item !== null);
     const unique = uniqueSearchResults(results).slice(0, safePageSize);
+
+    if (unique.length === 0) {
+      const blocked =
+        /punish|captcha|baxia|slide to verify|unusual traffic/i.test(html) ||
+        !html.includes("listItems");
+      return { results: [], has_more: false, blocked };
+    }
+
     return { results: unique, has_more: unique.length >= safePageSize };
   } catch {
     return { results: [], has_more: false };

@@ -265,6 +265,16 @@ fetchPreviewRouter.post("/lazada-search", async (req, res) => {
     return;
   }
 
-  const { results, has_more } = await searchLazadaProducts(query, page, 12);
+  const { results, has_more, blocked } = await searchLazadaProducts(query, page, 12);
+
+  if (results.length === 0 && blocked) {
+    res.status(503).json({
+      error:
+        "Lazada search is temporarily unavailable from our server. Please try again later or paste a product link directly.",
+      blocked: true,
+    });
+    return;
+  }
+
   res.json({ results, page, has_more });
 });
