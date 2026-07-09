@@ -11,7 +11,13 @@ function messengerPageUrl(): string {
   console.warn(
     "[BFM] VITE_MESSENGER_PAGE_URL is not set. Add your m.me link to .env",
   );
-  return "https://m.me/";
+  return "";
+}
+
+function facebookPageUrl(): string {
+  const configured = (import.meta.env.VITE_FACEBOOK_PAGE_URL as string | undefined)?.trim();
+  if (!configured) return "https://www.facebook.com/";
+  return configured.replace(/\/$/, "");
 }
 
 function normalizeMessengerUrl(base: string): string {
@@ -29,6 +35,36 @@ function normalizeMessengerUrl(base: string): string {
     return `https://m.me/${base.replace(/^https?:\/\//, "")}`;
   }
   return base;
+}
+
+function hasConfiguredMessengerTarget(base: string): boolean {
+  if (!base) return false;
+  try {
+    const url = new URL(base);
+    const host = url.hostname.toLowerCase();
+    if (host === "m.me" || host.endsWith(".m.me")) {
+      return url.pathname.replace(/\//g, "").length > 0;
+    }
+    if (host.includes("facebook.com")) {
+      return url.pathname.replace(/\//g, "").length > 0;
+    }
+    return false;
+  } catch {
+    return false;
+  }
+}
+
+function firstShareableUrl(items: SavedLink[]): string {
+  const firstValid = items.find((item) => /^https?:\/\//i.test(item.url));
+  return firstValid?.url ?? facebookPageUrl();
+}
+
+function buildFacebookShareUrl(message: string, shareUrl: string): string {
+  const params = new URLSearchParams({
+    u: shareUrl,
+    quote: message,
+  });
+  return `https://www.facebook.com/sharer/sharer.php?${params.toString()}`;
 }
 
 function buildBuyForMeMessage(items: SavedLink[], fromQrReferral = false): string {
@@ -59,12 +95,19 @@ export function buildBuyForMeMessengerUrl(
   items: SavedLink[],
   options?: { fromQrReferral?: boolean },
 ): string {
-  if (items.length === 0) return messengerPageUrl();
+  const base = normalizeMessengerUrl(messengerPageUrl());
+  const hasTarget = hasConfiguredMessengerTarget(base);
+
+  if (items.length === 0) {
+    return hasTarget ? base : facebookPageUrl();
+  }
 
   const message = buildBuyForMeMessage(items, options?.fromQrReferral ?? false);
-  const encoded = encodeURIComponent(message);
-  const base = normalizeMessengerUrl(messengerPageUrl());
+  if (!hasTarget) {
+    return buildFacebookShareUrl(message, firstShareableUrl(items));
+  }
 
+  const encoded = encodeURIComponent(message);
   return `${base}${base.includes("?") ? "&" : "?"}text=${encoded}`;
 }
 
@@ -73,22 +116,31 @@ export function openBuyForMeOnMessenger(items: SavedLink[]): void {
   if (items.length === 0) return;
 
   const message = buildBuyForMeMessage(items);
+  const shareUrl = firstShareableUrl(items);
+  const messengerUrl = buildBuyForMeMessengerUrl(items);
+  const fallbackShareUrl = buildFacebookShareUrl(message, shareUrl);
+  const hasMessengerTarget = hasConfiguredMessengerTarget(normalizeMessengerUrl(messengerPageUrl()));
+
+  // If Messenger page is not configured, fallback to Facebook share flow.
+  if (!hasMessengerTarget) {
+    window.open(fallbackShareUrl, "_blank", "noopener,noreferrer");
+    return;
+  }
 
   // Mobile Messenger commonly drops the ?text= value from m.me links.
-  // Native share preserves the full product list when the user chooses Messenger.
+  // Native share keeps the link and message payload for user-selected apps.
   if (isMobileDevice() && navigator.share) {
     void navigator
       .share({
         title: "Buy For Me request",
         text: message,
+        url: shareUrl,
       })
       .catch(() => {
-        const url = buildBuyForMeMessengerUrl(items);
-        window.open(url, "_blank", "noopener,noreferrer");
+        window.open(messengerUrl, "_blank", "noopener,noreferrer");
       });
     return;
   }
 
-  const url = buildBuyForMeMessengerUrl(items);
-  window.open(url, "_blank", "noopener,noreferrer");
+  window.open(messengerUrl, "_blank", "noopener,noreferrer");
 }
