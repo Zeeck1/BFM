@@ -17,6 +17,15 @@ export interface LazadaPreviewResult {
   price_thb?: number;
 }
 
+export interface LazadaSearchResult extends LazadaPreviewResult {
+  source_id?: string;
+}
+
+export interface LazadaSearchResponse {
+  results: LazadaSearchResult[];
+  has_more: boolean;
+}
+
 export function isLazadaProductUrl(raw: string): boolean {
   try {
     return LAZADA_HOSTS.has(new URL(raw.trim()).hostname.toLowerCase());
@@ -61,6 +70,29 @@ function pickImage(value: unknown): string | undefined {
   if (typeof value === "string") return value;
   if (Array.isArray(value) && typeof value[0] === "string") return value[0];
   return undefined;
+}
+
+function pickString(value: unknown): string | undefined {
+  if (typeof value !== "string") return undefined;
+  const trimmed = value.trim();
+  return trimmed || undefined;
+}
+
+function pickNumber(value: unknown): number | undefined {
+  if (typeof value === "number") return parsePriceThb(value);
+  if (typeof value === "string") return parsePriceThb(value);
+  return undefined;
+}
+
+function absoluteLazadaUrl(value: string | undefined): string | undefined {
+  if (!value) return undefined;
+  if (/^https?:\/\//i.test(value)) return value;
+  if (value.startsWith("//")) return `https:${value}`;
+  try {
+    return new URL(value, "https://www.lazada.co.th").toString();
+  } catch {
+    return undefined;
+  }
 }
 
 function readJsonLdProduct(html: string): Record<string, unknown> | null {
@@ -185,6 +217,164 @@ async function readResponseText(response: Response, maxBytes = 900_000): Promise
   }
   reader.cancel();
   return html;
+}
+
+function findMatchingBracket(source: string, startIndex: number): number {
+  let depth = 0;
+  let inString = false;
+  let quote = "";
+  let escaped = false;
+
+  for (let i = startIndex; i < source.length; i += 1) {
+    const char = source[i];
+
+    if (inString) {
+      if (escaped) {
+        escaped = false;
+      } else if (char === "\\") {
+        escaped = true;
+      } else if (char === quote) {
+        inString = false;
+      }
+      continue;
+    }
+
+    if (char === "\"" || char === "'") {
+      inString = true;
+      quote = char;
+      continue;
+    }
+
+    if (char === "[") depth += 1;
+    if (char === "]") {
+      depth -= 1;
+      if (depth === 0) return i;
+    }
+  }
+
+  return -1;
+}
+
+function readSearchListItems(payload: string): unknown[] {
+  try {
+    const parsed = JSON.parse(payload) as {
+      mods?: { listItems?: unknown[] };
+      mainInfo?: { totalResults?: number };
+    };
+    if (Array.isArray(parsed?.mods?.listItems)) {
+      return parsed.mods.listItems;
+    }
+  } catch {
+    /* ignore and fallback to bracket parsing */
+  }
+
+  const keyIndex = payload.indexOf('"listItems"');
+  if (keyIndex === -1) return [];
+
+  const arrayStart = payload.indexOf("[", keyIndex);
+  if (arrayStart === -1) return [];
+
+  const arrayEnd = findMatchingBracket(payload, arrayStart);
+  if (arrayEnd === -1) return [];
+
+  try {
+    const parsed = JSON.parse(payload.slice(arrayStart, arrayEnd + 1));
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+function normalizeSearchItem(item: unknown): LazadaSearchResult | null {
+  if (!item || typeof item !== "object") return null;
+
+  const record = item as Record<string, unknown>;
+  const rawUrl =
+    pickString(record.itemUrl) ||
+    pickString(record.productUrl) ||
+    pickString(record.url);
+  const url = absoluteLazadaUrl(rawUrl);
+  if (!url) return null;
+
+  const title =
+    pickString(record.name) ||
+    pickString(record.title) ||
+    pickString(record.productName);
+  if (!title) return null;
+
+  const image_url = absoluteLazadaUrl(
+    pickImage(record.image) ||
+      pickImage(record.imageUrl) ||
+      pickImage(record.img) ||
+      pickImage(record.productImage),
+  );
+
+  const price_thb =
+    pickNumber(record.price) ||
+    pickNumber(record.priceShow) ||
+    pickNumber(record.salePrice) ||
+    pickNumber(record.discountPrice);
+
+  return {
+    source_id: pickString(record.nid) || pickString(record.itemId) || pickString(record.skuId),
+    url,
+    title: decodeHtml(title),
+    image_url,
+    price_thb,
+    site_name: "Lazada",
+  };
+}
+
+function uniqueSearchResults(results: LazadaSearchResult[]): LazadaSearchResult[] {
+  const seen = new Set<string>();
+  return results.filter((result) => {
+    const key = result.source_id || result.url;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+export async function searchLazadaProducts(
+  query: string,
+  page = 1,
+  pageSize = 12,
+): Promise<LazadaSearchResponse> {
+  const cleaned = query.trim();
+  if (!cleaned) return { results: [], has_more: false };
+  const safePage = Number.isFinite(page) && page > 0 ? Math.floor(page) : 1;
+  const safePageSize = Number.isFinite(pageSize) ? Math.min(Math.max(Math.floor(pageSize), 1), 24) : 12;
+
+  const url = new URL("https://www.lazada.co.th/catalog/");
+  url.searchParams.set("ajax", "true");
+  url.searchParams.set("q", cleaned);
+  url.searchParams.set("page", String(safePage));
+
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 20_000);
+
+  try {
+    const response = await fetch(url.toString(), {
+      signal: controller.signal,
+      headers: {
+        ...buildHeaders(),
+        Accept: "application/json,text/plain,*/*",
+      },
+      redirect: "follow",
+    });
+
+    const html = await readResponseText(response, 1_500_000);
+    const items = readSearchListItems(html);
+    const results = items
+      .map(normalizeSearchItem)
+      .filter((item): item is LazadaSearchResult => item !== null);
+    const unique = uniqueSearchResults(results).slice(0, safePageSize);
+    return { results: unique, has_more: unique.length >= safePageSize };
+  } catch {
+    return { results: [], has_more: false };
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 export async function fetchLazadaProductPreview(rawUrl: string): Promise<LazadaPreviewResult> {

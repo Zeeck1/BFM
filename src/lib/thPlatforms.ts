@@ -74,6 +74,13 @@ export const PLATFORM_CATEGORIES: PlatformCategory[] = [
         logo: "https://www.google.com/s2/favicons?domain=konvy.com&sz=128",
         color: "#E91E8C",
       },
+      {
+        id: "watsons-th",
+        name: "Watsons Thailand",
+        url: "https://www.watsons.co.th",
+        logo: "https://www.google.com/s2/favicons?domain=watsons.co.th&sz=128",
+        color: "#00A0A8",
+      },
     ],
   },
   {

@@ -50,6 +50,10 @@ function buildBuyForMeMessage(items: SavedLink[], fromQrReferral = false): strin
   return `${header}${qrNote}\n\n${lines.join("\n\n")}`;
 }
 
+function isMobileDevice(): boolean {
+  return /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent);
+}
+
 /** Build a Messenger URL with a pre-filled order message. */
 export function buildBuyForMeMessengerUrl(
   items: SavedLink[],
@@ -67,6 +71,24 @@ export function buildBuyForMeMessengerUrl(
 /** Open Messenger with the buy-for-me message for the given items. */
 export function openBuyForMeOnMessenger(items: SavedLink[]): void {
   if (items.length === 0) return;
+
+  const message = buildBuyForMeMessage(items);
+
+  // Mobile Messenger commonly drops the ?text= value from m.me links.
+  // Native share preserves the full product list when the user chooses Messenger.
+  if (isMobileDevice() && navigator.share) {
+    void navigator
+      .share({
+        title: "Buy For Me request",
+        text: message,
+      })
+      .catch(() => {
+        const url = buildBuyForMeMessengerUrl(items);
+        window.open(url, "_blank", "noopener,noreferrer");
+      });
+    return;
+  }
+
   const url = buildBuyForMeMessengerUrl(items);
   window.open(url, "_blank", "noopener,noreferrer");
 }

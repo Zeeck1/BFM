@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Check, Clock, Copy, Download, QrCode, X } from "lucide-react";
 import QRCode from "qrcode";
+import bfmLogo from "../assets/images/BFM_logo.png";
 
 interface QRCodeModalProps {
   open: boolean;
@@ -111,15 +112,16 @@ export function QRCodeModal({
     } catch {}
   }
 
-  function handleDownload() {
+  async function handleDownload() {
     if (!canvasRef.current) return;
 
     const tempCanvas = document.createElement("canvas");
     const padding = 48;
+    const headerHeight = 104;
     const qrSize = 280;
     const footerHeight = 80;
     const totalW = qrSize + padding * 2;
-    const totalH = qrSize + padding * 2 + footerHeight;
+    const totalH = qrSize + padding * 2 + headerHeight + footerHeight;
 
     tempCanvas.width = totalW;
     tempCanvas.height = totalH;
@@ -129,19 +131,35 @@ export function QRCodeModal({
     ctx.roundRect(0, 0, totalW, totalH, 16);
     ctx.fill();
 
-    ctx.drawImage(canvasRef.current, padding, padding, qrSize, qrSize);
+    try {
+      const logo = await loadImage(bfmLogo);
+      const logoSize = 56;
+      const logoX = totalW / 2 - logoSize / 2;
+      const logoY = 28;
+      ctx.drawImage(logo, logoX, logoY, logoSize, logoSize);
+    } catch {
+      // If the logo cannot be loaded, still download a valid QR image.
+    }
+
+    ctx.fillStyle = "#0f172a";
+    ctx.font = "bold 15px Inter, system-ui, sans-serif";
+    ctx.textAlign = "center";
+    ctx.fillText("Buy For Me", totalW / 2, 96);
+
+    const qrY = padding + headerHeight;
+    ctx.drawImage(canvasRef.current, padding, qrY, qrSize, qrSize);
 
     ctx.fillStyle = "#0f172a";
     ctx.font = "bold 16px Inter, system-ui, sans-serif";
     ctx.textAlign = "center";
-    ctx.fillText(`${ownerName}'s Favourites`, totalW / 2, qrSize + padding + 30);
+    ctx.fillText(`${ownerName}'s Favourites`, totalW / 2, qrY + qrSize + 30);
 
     ctx.fillStyle = "#94a3b8";
     ctx.font = "13px Inter, system-ui, sans-serif";
     const subtitle = expiresIn
       ? `${itemCount} item${itemCount !== 1 ? "s" : ""} · Expires in ${expiresIn}`
       : `${itemCount} item${itemCount !== 1 ? "s" : ""} · Scan to view`;
-    ctx.fillText(subtitle, totalW / 2, qrSize + padding + 52);
+    ctx.fillText(subtitle, totalW / 2, qrY + qrSize + 52);
 
     const link = document.createElement("a");
     link.download = `bfm-qr-${Date.now()}.png`;

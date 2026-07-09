@@ -18,6 +18,10 @@ export interface ProductPreview {
   site_name?: string;
 }
 
+export interface ProductSearchResult extends ProductPreview {
+  source_id?: string;
+}
+
 /** A saved link row from Supabase. */
 export interface SavedLink {
   id: string;

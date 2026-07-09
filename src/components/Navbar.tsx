@@ -25,7 +25,7 @@ export function Navbar({ user, onAuthClick, wishlistCount = 0 }: NavbarProps) {
 
   return (
     <header className="sticky top-0 z-40 w-full border-b border-slate-100 bg-white/95 backdrop-blur-md">
-      <div className="mx-auto flex h-14 max-w-7xl items-center justify-between gap-2 px-3 sm:px-4 lg:grid lg:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] lg:items-center lg:gap-3 lg:px-6">
+      <div className="relative mx-auto flex h-14 max-w-7xl items-center justify-between gap-2 px-3 sm:px-4 lg:grid lg:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] lg:items-center lg:gap-3 lg:px-6">
         {/* Logo */}
         <Link to="/" className="flex min-w-0 shrink-0 items-center gap-2 select-none lg:justify-self-start">
           <BrandLogo className="h-8 w-8 rounded-lg" />
@@ -39,6 +39,11 @@ export function Navbar({ user, onAuthClick, wishlistCount = 0 }: NavbarProps) {
 
         {/* Desktop tabs — center on large screens */}
         <AppTabs wishlistCount={wishlistCount} variant="desktop" className="lg:justify-self-center" />
+
+        {/* Mobile rate — centered in navbar */}
+        <div className="pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 sm:hidden">
+          <ExchangeRateWidget className="pointer-events-auto flex items-center gap-1.5 rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 shadow-sm" />
+        </div>
 
         {/* Right side */}
         <div className="flex shrink-0 items-center justify-end gap-1.5 sm:gap-2 lg:justify-self-end">
