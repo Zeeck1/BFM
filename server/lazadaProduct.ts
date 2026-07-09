@@ -359,6 +359,12 @@ export async function searchLazadaProducts(
       headers: {
         ...buildHeaders(),
         Accept: "application/json,text/plain,*/*",
+        "Cache-Control": "no-cache",
+        Pragma: "no-cache",
+        "Sec-Fetch-Dest": "empty",
+        "Sec-Fetch-Mode": "cors",
+        "Sec-Fetch-Site": "same-origin",
+        "X-Requested-With": "XMLHttpRequest",
       },
       redirect: "follow",
     });
