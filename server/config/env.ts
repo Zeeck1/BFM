@@ -15,4 +15,9 @@ export const env = {
    *   https://api.scrapingant.com/v2/general?x-api-key=KEY&url={url}
    */
   lazadaProxyUrl: process.env.LAZADA_PROXY_URL?.trim() ?? "",
+  /** RapidAPI key for Lazada product search (TMAPI Lazada API) */
+  rapidApiKey: process.env.RAPIDAPI_KEY?.trim() ?? "",
+  /** RapidAPI host for Lazada search */
+  rapidApiLazadaHost:
+    process.env.RAPIDAPI_LAZADA_HOST?.trim() || "lazada-api.p.rapidapi.com",
 };

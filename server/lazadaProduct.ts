@@ -222,51 +222,88 @@ function looksBlocked(payload: string): boolean {
   return /punish|captcha|baxia|slide to verify|unusual traffic/i.test(payload);
 }
 
+const SEARCH_CACHE_TTL_MS = 15 * 60_000;
+const searchCache = new Map<string, { expiresAt: number; value: LazadaSearchResponse }>();
+
+function getCachedSearch(key: string): LazadaSearchResponse | null {
+  const hit = searchCache.get(key);
+  if (!hit) return null;
+  if (Date.now() > hit.expiresAt) {
+    searchCache.delete(key);
+    return null;
+  }
+  return hit.value;
+}
+
+function setCachedSearch(key: string, value: LazadaSearchResponse) {
+  searchCache.set(key, { expiresAt: Date.now() + SEARCH_CACHE_TTL_MS, value });
+  // Keep cache bounded
+  if (searchCache.size > 200) {
+    const oldest = searchCache.keys().next().value;
+    if (oldest) searchCache.delete(oldest);
+  }
+}
+
+async function fetchViaProxy(targetUrl: string, accept: string, maxBytes: number): Promise<string> {
+  const proxy = proxiedUrl(targetUrl);
+  if (!proxy) throw new Error("No Lazada proxy configured");
+
+  const PROXY_TIMEOUT_MS = 55_000;
+  let lastError: unknown;
+
+  // One retry helps with intermittent ScraperAPI failures
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    try {
+      const viaProxy = await fetch(proxy, {
+        headers: { Accept: accept },
+        redirect: "follow",
+        signal: AbortSignal.timeout(PROXY_TIMEOUT_MS),
+      });
+      if (!viaProxy.ok) {
+        lastError = new Error(`Proxy HTTP ${viaProxy.status}`);
+        continue;
+      }
+      return await readResponseText(viaProxy, maxBytes);
+    } catch (err) {
+      lastError = err;
+    }
+  }
+
+  throw lastError instanceof Error ? lastError : new Error("Lazada proxy fetch failed");
+}
+
 /**
- * Fetch a Lazada URL directly; if the response fails `isValid` and a proxy
- * is configured, retry once through the proxy.
+ * Fetch Lazada content.
+ * - If a proxy is configured, go straight to it (direct Lazada is almost always blocked).
+ * - Otherwise try a short direct request.
  */
 async function fetchLazadaText(
   targetUrl: string,
   accept: string,
-  timeoutMs: number,
+  _timeoutMs: number,
   maxBytes: number,
   isValid: (payload: string) => boolean,
 ): Promise<string> {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeoutMs);
-
-  try {
-    const direct = await fetch(targetUrl, {
-      signal: controller.signal,
-      headers: { ...buildHeaders(), Accept: accept },
-      redirect: "follow",
-    });
-    const text = await readResponseText(direct, maxBytes);
-    if (isValid(text)) return text;
-
-    const proxy = proxiedUrl(targetUrl);
-    if (!proxy) return text;
-
-    const viaProxy = await fetch(proxy, {
-      signal: controller.signal,
-      headers: { Accept: accept },
-      redirect: "follow",
-    });
-    return await readResponseText(viaProxy, maxBytes);
-  } catch {
-    // Direct fetch failed entirely (network/timeout) — try proxy if available.
-    const proxy = proxiedUrl(targetUrl);
-    if (!proxy) throw new Error("Lazada fetch failed");
-    const viaProxy = await fetch(proxy, {
-      headers: { Accept: accept },
-      redirect: "follow",
-      signal: AbortSignal.timeout(timeoutMs),
-    });
-    return await readResponseText(viaProxy, maxBytes);
-  } finally {
-    clearTimeout(timer);
+  // Prefer proxy when configured — avoids wasting ~8s on a blocked direct request.
+  if (env.lazadaProxyUrl) {
+    const text = await fetchViaProxy(targetUrl, accept, maxBytes);
+    if (!isValid(text)) {
+      throw new Error("Lazada proxy returned blocked or empty content");
+    }
+    return text;
   }
+
+  const DIRECT_TIMEOUT_MS = 8_000;
+  const direct = await fetch(targetUrl, {
+    signal: AbortSignal.timeout(DIRECT_TIMEOUT_MS),
+    headers: { ...buildHeaders(), Accept: accept },
+    redirect: "follow",
+  });
+  const directText = await readResponseText(direct, maxBytes);
+  if (!isValid(directText)) {
+    throw new Error("Lazada direct fetch blocked");
+  }
+  return directText;
 }
 
 async function readResponseText(response: Response, maxBytes = 900_000): Promise<string> {
@@ -401,6 +438,138 @@ function uniqueSearchResults(results: LazadaSearchResult[]): LazadaSearchResult[
   });
 }
 
+function asRecord(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === "object" ? (value as Record<string, unknown>) : null;
+}
+
+function extractRapidApiItems(payload: unknown): unknown[] {
+  if (Array.isArray(payload)) return payload;
+  const root = asRecord(payload);
+  if (!root) return [];
+
+  const candidates = [
+    root.items,
+    root.data,
+    root.result,
+    root.products,
+    asRecord(root.data)?.items,
+    asRecord(root.data)?.list,
+    asRecord(root.data)?.products,
+    asRecord(root.result)?.items,
+    asRecord(root.result)?.list,
+  ];
+
+  for (const candidate of candidates) {
+    if (Array.isArray(candidate)) return candidate;
+  }
+  return [];
+}
+
+function normalizeRapidApiItem(item: unknown): LazadaSearchResult | null {
+  if (!item || typeof item !== "object") return null;
+  const record = item as Record<string, unknown>;
+
+  const rawUrl =
+    pickString(record.item_url) ||
+    pickString(record.product_url) ||
+    pickString(record.itemUrl) ||
+    pickString(record.productUrl) ||
+    pickString(record.url) ||
+    pickString(record.link);
+  const sourceId =
+    pickString(record.item_id) ||
+    pickString(record.itemId) ||
+    pickString(record.product_id) ||
+    pickString(record.productId) ||
+    pickString(record.nid) ||
+    (typeof record.item_id === "number" ? String(record.item_id) : undefined) ||
+    (typeof record.itemId === "number" ? String(record.itemId) : undefined);
+
+  const url =
+    absoluteLazadaUrl(rawUrl) ||
+    (sourceId ? `https://www.lazada.co.th/products/pdp-i${sourceId}.html` : undefined);
+  if (!url) return null;
+
+  const title =
+    pickString(record.title) ||
+    pickString(record.name) ||
+    pickString(record.product_title) ||
+    pickString(record.productName);
+  if (!title) return null;
+
+  const image_url = absoluteLazadaUrl(
+    pickImage(record.image) ||
+      pickImage(record.img) ||
+      pickImage(record.thumbnail) ||
+      pickImage(record.main_image) ||
+      pickImage(record.productImage) ||
+      pickImage(record.pic_url),
+  );
+
+  const price_thb =
+    pickNumber(record.price) ||
+    pickNumber(record.sale_price) ||
+    pickNumber(record.salePrice) ||
+    pickNumber(record.sku_price) ||
+    pickNumber(record.price_info) ||
+    pickNumber(asRecord(record.price_info)?.sale_price) ||
+    pickNumber(asRecord(record.price_info)?.price);
+
+  return {
+    source_id: sourceId,
+    url,
+    title: decodeHtml(title),
+    image_url,
+    price_thb,
+    site_name: "Lazada",
+  };
+}
+
+/** Fast Lazada search via RapidAPI (TMAPI Lazada API). */
+async function searchViaRapidApi(
+  query: string,
+  page: number,
+  pageSize: number,
+): Promise<LazadaSearchResponse | null> {
+  if (!env.rapidApiKey) return null;
+
+  const url = new URL(`https://${env.rapidApiLazadaHost}/lazada/search/items`);
+  url.searchParams.set("keywords", query);
+  url.searchParams.set("site", "th");
+  url.searchParams.set("page", String(page));
+  url.searchParams.set("sort", "pop");
+
+  const res = await fetch(url.toString(), {
+    headers: {
+      "x-rapidapi-key": env.rapidApiKey,
+      "x-rapidapi-host": env.rapidApiLazadaHost,
+    },
+    signal: AbortSignal.timeout(20_000),
+  });
+
+  const text = await res.text();
+  if (!res.ok) {
+    throw new Error(`RapidAPI Lazada ${res.status}: ${text.slice(0, 180)}`);
+  }
+
+  let payload: unknown;
+  try {
+    payload = JSON.parse(text);
+  } catch {
+    throw new Error("RapidAPI Lazada returned invalid JSON");
+  }
+
+  const items = extractRapidApiItems(payload);
+  const results = uniqueSearchResults(
+    items
+      .map(normalizeRapidApiItem)
+      .filter((item): item is LazadaSearchResult => item !== null),
+  ).slice(0, pageSize);
+
+  if (results.length === 0) return { results: [], has_more: false };
+  return { results, has_more: results.length >= pageSize };
+}
+
 export async function searchLazadaProducts(
   query: string,
   page = 1,
@@ -411,33 +580,25 @@ export async function searchLazadaProducts(
   const safePage = Number.isFinite(page) && page > 0 ? Math.floor(page) : 1;
   const safePageSize = Number.isFinite(pageSize) ? Math.min(Math.max(Math.floor(pageSize), 1), 24) : 12;
 
-  const url = new URL("https://www.lazada.co.th/catalog/");
-  url.searchParams.set("ajax", "true");
-  url.searchParams.set("q", cleaned);
-  url.searchParams.set("page", String(safePage));
+  const cacheKey = `${cleaned.toLowerCase()}::${safePage}::${safePageSize}`;
+  const cached = getCachedSearch(cacheKey);
+  if (cached) return cached;
+
+  if (!env.rapidApiKey) {
+    console.warn("[BFM] RAPIDAPI_KEY is not set — Lazada search disabled");
+    return { results: [], has_more: false, blocked: true };
+  }
 
   try {
-    const html = await fetchLazadaText(
-      url.toString(),
-      "application/json,text/plain,*/*",
-      25_000,
-      1_500_000,
-      (payload) => payload.includes("listItems") && !looksBlocked(payload),
-    );
-    const items = readSearchListItems(html);
-    const results = items
-      .map(normalizeSearchItem)
-      .filter((item): item is LazadaSearchResult => item !== null);
-    const unique = uniqueSearchResults(results).slice(0, safePageSize);
-
-    if (unique.length === 0) {
-      const blocked = looksBlocked(html) || !html.includes("listItems");
-      return { results: [], has_more: false, blocked };
+    const rapid = await searchViaRapidApi(cleaned, safePage, safePageSize);
+    if (rapid && rapid.results.length > 0) {
+      setCachedSearch(cacheKey, rapid);
+      return rapid;
     }
-
-    return { results: unique, has_more: unique.length >= safePageSize };
-  } catch {
-    return { results: [], has_more: false };
+    return rapid ?? { results: [], has_more: false };
+  } catch (err) {
+    console.warn("[BFM] RapidAPI Lazada search failed:", err);
+    return { results: [], has_more: false, blocked: true };
   }
 }
 

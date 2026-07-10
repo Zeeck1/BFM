@@ -1,4 +1,5 @@
 import type { ProductSearchResult } from "../types";
+import { loadPageCache, saveLastLazadaSearch } from "./lazadaSearchCache";
 
 interface LazadaSearchResponse {
   results?: ProductSearchResult[];
@@ -16,11 +17,22 @@ export interface LazadaSearchPage {
 export async function searchLazadaProducts(
   query: string,
   page = 1,
+  options?: { bypassCache?: boolean },
 ): Promise<LazadaSearchPage> {
+  const cleaned = query.trim();
+
+  if (!options?.bypassCache) {
+    const cached = loadPageCache(cleaned, page);
+    if (cached && cached.results.length > 0) {
+      saveLastLazadaSearch(cleaned, cached);
+      return cached;
+    }
+  }
+
   const res = await fetch("/api/lazada-search", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ query, page }),
+    body: JSON.stringify({ query: cleaned, page }),
     signal: AbortSignal.timeout(25_000),
   });
 
@@ -30,9 +42,15 @@ export async function searchLazadaProducts(
     throw new Error(data.error ?? "Failed to search Lazada products");
   }
 
-  return {
+  const result: LazadaSearchPage = {
     results: data.results ?? [],
     page: data.page ?? page,
     hasMore: Boolean(data.has_more),
   };
+
+  if (result.results.length > 0) {
+    saveLastLazadaSearch(cleaned, result);
+  }
+
+  return result;
 }

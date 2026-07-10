@@ -25,6 +25,7 @@ import { ProductPreviewCard } from "../components/ProductPreviewCard";
 import { useExchangeRate } from "../hooks/useExchangeRate";
 import { useSavedItems } from "../contexts/SavedItemsProvider";
 import { searchLazadaProducts } from "../lib/lazadaSearch";
+import { loadLastLazadaSearch } from "../lib/lazadaSearchCache";
 import { fetchPreview } from "../lib/preview";
 import { isFetchableUrl } from "../lib/utils";
 import { formatMMK, formatTHB } from "../lib/utils";
@@ -170,6 +171,20 @@ export function LinkSearchPage() {
   const hasActivity =
     fetchState !== "idle" || !!preview || searchState !== "idle" || searchResults.length > 0;
 
+  // Restore last Lazada search instantly when returning to the page
+  useEffect(() => {
+    const last = loadLastLazadaSearch();
+    if (!last || last.results.length === 0) return;
+    setUrl(last.query);
+    setSearchResults(last.results);
+    setSearchPage(last.page);
+    setSearchHasMore(last.hasMore);
+    setSearchState("done");
+    setSearchError("");
+    setFetchState("idle");
+    setPreview(null);
+  }, []);
+
   useEffect(() => {
     const trimmed = url.trim();
     if (!isFetchableUrl(trimmed)) {
@@ -225,14 +240,14 @@ export function LinkSearchPage() {
     setFetchState("idle");
     setFetchError("");
     setPreviewSaved(false);
-    setSearchState("loading");
     setSearchError("");
-    setSearchResults([]);
     setSearchPage(page);
-    setSearchHasMore(false);
     if (page === 1) {
       setSavedResultUrls(new Set());
     }
+
+    // Keep previous results visible while loading a new page/query when possible
+    setSearchState("loading");
 
     try {
       const response = await searchLazadaProducts(query, page);
@@ -436,12 +451,12 @@ export function LinkSearchPage() {
               </div>
             )}
 
-            {searchState === "loading" && (
+            {searchState === "loading" && searchResults.length === 0 && (
               <div className="flex items-center gap-4 rounded-2xl border border-slate-200/80 bg-white p-5 shadow-lg shadow-slate-200/60">
                 <Loader2 className="h-5 w-5 shrink-0 animate-spin text-indigo-500" />
                 <div className="flex-1 space-y-2">
                   <p className="text-sm font-semibold text-slate-700">Searching Lazada products...</p>
-                  <div className="shimmer h-3 w-1/2 rounded-full" />
+                  <p className="text-xs text-slate-400">Usually 1–3 seconds.</p>
                 </div>
               </div>
             )}
@@ -496,15 +511,17 @@ export function LinkSearchPage() {
               </div>
             )}
 
-            {searchState === "done" && (
+            {(searchState === "done" || (searchState === "loading" && searchResults.length > 0)) && (
               <div className="space-y-4">
                 <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
                   <div>
                     <p className="text-sm font-bold text-slate-900">Lazada products</p>
                     <p className="text-xs text-slate-500">
-                      {searchResults.length > 0
-                        ? `${searchResults.length} result${searchResults.length !== 1 ? "s" : ""} on page ${searchPage}`
-                        : "No products found for this search"}
+                      {searchState === "loading"
+                        ? "Updating results..."
+                        : searchResults.length > 0
+                          ? `${searchResults.length} result${searchResults.length !== 1 ? "s" : ""} on page ${searchPage}`
+                          : "No products found for this search"}
                     </p>
                     <p className="text-[11px] text-slate-400">Tap product image to view full image.</p>
                   </div>
