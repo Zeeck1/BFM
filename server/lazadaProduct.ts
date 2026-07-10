@@ -205,6 +205,70 @@ function buildHeaders(): Record<string, string> {
   return headers;
 }
 
+/** Wrap a target URL with the configured scraping proxy, if any. */
+function proxiedUrl(targetUrl: string): string | null {
+  if (!env.lazadaProxyUrl) return null;
+  if (env.lazadaProxyUrl.includes("{url}")) {
+    return env.lazadaProxyUrl.replace("{url}", encodeURIComponent(targetUrl));
+  }
+  // No placeholder — assume the proxy accepts ?url= appended
+  const sep = env.lazadaProxyUrl.includes("?") ? "&" : "?";
+  return `${env.lazadaProxyUrl}${sep}url=${encodeURIComponent(targetUrl)}`;
+}
+
+/** True when the payload contains Lazada bot-check / captcha markers. */
+function looksBlocked(payload: string): boolean {
+  if (!payload) return true;
+  return /punish|captcha|baxia|slide to verify|unusual traffic/i.test(payload);
+}
+
+/**
+ * Fetch a Lazada URL directly; if the response fails `isValid` and a proxy
+ * is configured, retry once through the proxy.
+ */
+async function fetchLazadaText(
+  targetUrl: string,
+  accept: string,
+  timeoutMs: number,
+  maxBytes: number,
+  isValid: (payload: string) => boolean,
+): Promise<string> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    const direct = await fetch(targetUrl, {
+      signal: controller.signal,
+      headers: { ...buildHeaders(), Accept: accept },
+      redirect: "follow",
+    });
+    const text = await readResponseText(direct, maxBytes);
+    if (isValid(text)) return text;
+
+    const proxy = proxiedUrl(targetUrl);
+    if (!proxy) return text;
+
+    const viaProxy = await fetch(proxy, {
+      signal: controller.signal,
+      headers: { Accept: accept },
+      redirect: "follow",
+    });
+    return await readResponseText(viaProxy, maxBytes);
+  } catch {
+    // Direct fetch failed entirely (network/timeout) — try proxy if available.
+    const proxy = proxiedUrl(targetUrl);
+    if (!proxy) throw new Error("Lazada fetch failed");
+    const viaProxy = await fetch(proxy, {
+      headers: { Accept: accept },
+      redirect: "follow",
+      signal: AbortSignal.timeout(timeoutMs),
+    });
+    return await readResponseText(viaProxy, maxBytes);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 async function readResponseText(response: Response, maxBytes = 900_000): Promise<string> {
   const reader = response.body?.getReader();
   if (!reader) return response.text();
@@ -352,20 +416,14 @@ export async function searchLazadaProducts(
   url.searchParams.set("q", cleaned);
   url.searchParams.set("page", String(safePage));
 
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 20_000);
-
   try {
-    const response = await fetch(url.toString(), {
-      signal: controller.signal,
-      headers: {
-        ...buildHeaders(),
-        Accept: "application/json,text/plain,*/*",
-      },
-      redirect: "follow",
-    });
-
-    const html = await readResponseText(response, 1_500_000);
+    const html = await fetchLazadaText(
+      url.toString(),
+      "application/json,text/plain,*/*",
+      25_000,
+      1_500_000,
+      (payload) => payload.includes("listItems") && !looksBlocked(payload),
+    );
     const items = readSearchListItems(html);
     const results = items
       .map(normalizeSearchItem)
@@ -373,17 +431,13 @@ export async function searchLazadaProducts(
     const unique = uniqueSearchResults(results).slice(0, safePageSize);
 
     if (unique.length === 0) {
-      const blocked =
-        /punish|captcha|baxia|slide to verify|unusual traffic/i.test(html) ||
-        !html.includes("listItems");
+      const blocked = looksBlocked(html) || !html.includes("listItems");
       return { results: [], has_more: false, blocked };
     }
 
     return { results: unique, has_more: unique.length >= safePageSize };
   } catch {
     return { results: [], has_more: false };
-  } finally {
-    clearTimeout(timer);
   }
 }
 
@@ -392,18 +446,15 @@ export async function fetchLazadaProductPreview(rawUrl: string): Promise<LazadaP
   url.hash = "";
   const normalized = url.toString();
 
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 20_000);
-
   try {
-    const response = await fetch(normalized, {
-      signal: controller.signal,
-      headers: buildHeaders(),
-      redirect: "follow",
-    });
-
-    const html = await readResponseText(response);
-    const finalUrl = response.url || normalized;
+    const html = await fetchLazadaText(
+      normalized,
+      "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+      25_000,
+      900_000,
+      (payload) => !looksBlocked(payload) && /og:title|application\/ld\+json/i.test(payload),
+    );
+    const finalUrl = normalized;
 
     const jsonLd = readJsonLdProduct(html);
 
@@ -437,7 +488,5 @@ export async function fetchLazadaProductPreview(rawUrl: string): Promise<LazadaP
     };
   } catch {
     return { url: normalized, site_name: "Lazada" };
-  } finally {
-    clearTimeout(timer);
   }
 }
