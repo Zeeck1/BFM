@@ -32,7 +32,7 @@ export async function searchLazadaProducts(
   const res = await fetch("/api/lazada-search", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ query: cleaned, page }),
+    body: JSON.stringify({ query: cleaned, page, pageSize: 14 }),
     signal: AbortSignal.timeout(25_000),
   });
 

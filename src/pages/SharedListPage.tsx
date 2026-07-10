@@ -65,7 +65,7 @@ function SharedItemRow({ item, index }: { item: SavedLink; index: number }) {
             <img
               src={item.image_url}
               alt={item.title ?? "Product"}
-              className="h-full w-full object-cover object-center"
+              className="h-full w-full object-contain object-center"
               onError={() => setImgError(true)}
             />
           ) : (

@@ -66,7 +66,7 @@ export function saveLastLazadaSearch(
 }
 
 function pageCacheKey(query: string, page: number): string {
-  return `${query.trim().toLowerCase()}::${page}`;
+  return `${query.trim().toLowerCase()}::${page}::14`;
 }
 
 export function loadPageCache(query: string, page: number): LazadaSearchPage | null {

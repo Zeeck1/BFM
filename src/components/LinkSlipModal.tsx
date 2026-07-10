@@ -19,18 +19,20 @@ function SlipThumbnail({ item }: { item: SavedLink }) {
 
   if (item.image_url && !imgError) {
     return (
-      <img
-        src={item.image_url}
-        alt=""
-        crossOrigin="anonymous"
-        onError={() => setImgError(true)}
-        className="h-14 w-14 flex-shrink-0 rounded-lg bg-slate-100 object-cover"
-      />
+      <div className="flex h-14 w-14 flex-shrink-0 items-center justify-center overflow-hidden rounded-lg bg-slate-50 ring-1 ring-slate-100">
+        <img
+          src={item.image_url}
+          alt=""
+          crossOrigin="anonymous"
+          onError={() => setImgError(true)}
+          className="h-full w-full object-contain object-center"
+        />
+      </div>
     );
   }
 
   return (
-    <div className="flex h-14 w-14 flex-shrink-0 items-center justify-center rounded-lg bg-indigo-100 text-lg font-bold text-indigo-700">
+    <div className="flex h-14 w-14 flex-shrink-0 items-center justify-center rounded-lg bg-indigo-50 text-lg font-bold text-indigo-700 ring-1 ring-indigo-100">
       {letter}
     </div>
   );
@@ -70,7 +72,6 @@ export function LinkSlipModal({ items, open, onClose }: LinkSlipModalProps) {
       onClick={(e) => e.target === e.currentTarget && !downloading && onClose()}
     >
       <div className="flex max-h-[95dvh] w-full max-w-lg flex-col overflow-hidden rounded-t-3xl bg-white shadow-2xl sm:rounded-2xl">
-        {/* Header */}
         <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4">
           <div>
             <h2 className="text-base font-bold text-slate-900">Link Slip</h2>
@@ -88,54 +89,64 @@ export function LinkSlipModal({ items, open, onClose }: LinkSlipModalProps) {
           </button>
         </div>
 
-        {/* Preview */}
         <div className="flex-1 overflow-y-auto bg-slate-100 p-4 sm:p-6">
           <div
             ref={slipRef}
-            className="mx-auto w-full max-w-[400px] overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-md"
+            className="mx-auto w-full max-w-[400px] overflow-hidden rounded-2xl bg-white shadow-lg shadow-slate-300/40"
           >
-            {/* Slip header */}
-            <div className="bg-gradient-to-br from-indigo-600 via-violet-600 to-purple-700 px-5 py-4 text-white">
+            {/* Header — matches download slip design */}
+            <div className="bg-gradient-to-r from-[#7c5cfc] via-[#6d5efc] to-[#5b4cdb] px-5 py-4 text-white">
               <div className="flex items-center gap-2.5">
-                <BrandLogo className="h-10 w-10 rounded-xl bg-white/90 p-1" />
+                <BrandLogo className="h-9 w-9 rounded-lg bg-white p-0.5 shadow-sm" />
                 <div>
-                  <p className="text-xs font-semibold uppercase tracking-widest text-indigo-200">
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-white/80">
                     Buy For Me
                   </p>
-                  <h3 className="text-lg font-extrabold tracking-tight">Product Link Slip</h3>
+                  <h3 className="text-lg font-extrabold leading-tight tracking-tight">
+                    Product Link Slip
+                  </h3>
                 </div>
               </div>
-              <p className="mt-3 text-xs text-indigo-100">{generatedAt}</p>
+              <p className="mt-2.5 text-xs text-white/75">{generatedAt}</p>
             </div>
 
             {/* Items */}
-            <div className="divide-y divide-slate-100 px-4 py-2">
+            <div className="px-4 py-1">
               {items.map((item, index) => (
-                <div key={item.id} className="flex gap-3 py-3">
-                  <div className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full bg-slate-100 text-xs font-bold text-slate-500">
+                <div
+                  key={item.id}
+                  className={`flex gap-3 py-3.5 ${
+                    index < items.length - 1 ? "border-b border-slate-100" : ""
+                  }`}
+                >
+                  <div className="mt-0.5 flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full bg-slate-100 text-[11px] font-bold text-slate-500">
                     {index + 1}
                   </div>
                   <SlipThumbnail item={item} />
                   <div className="min-w-0 flex-1">
                     {item.site_name && (
-                      <p className="text-[10px] font-bold uppercase tracking-wider text-indigo-600">
+                      <p className="text-[10px] font-bold uppercase tracking-wider text-[#4f46e5]">
                         {item.site_name}
                       </p>
                     )}
-                    <p className="text-sm font-semibold leading-snug text-slate-900">
+                    <p className="mt-0.5 text-sm font-bold leading-snug text-slate-900">
                       {item.title ?? "Product link"}
                     </p>
-                    {item.price_mmk != null && (
-                      <p className="mt-1 text-sm font-bold text-indigo-700">
+                    {item.price_mmk != null ? (
+                      <p className="mt-1 text-sm font-bold text-[#4f46e5]">
                         {formatMMK(item.price_mmk)}
                         {item.price_thb != null && (
-                          <span className="ml-1 text-xs font-normal text-slate-400">
+                          <span className="ml-1.5 text-xs font-normal text-slate-400">
                             ({formatTHB(item.price_thb)})
                           </span>
                         )}
                       </p>
-                    )}
-                    <p className="mt-1.5 break-all text-[11px] leading-relaxed text-slate-500">
+                    ) : item.price_thb != null ? (
+                      <p className="mt-1 text-sm font-bold text-[#4f46e5]">
+                        {formatTHB(item.price_thb)}
+                      </p>
+                    ) : null}
+                    <p className="mt-1.5 break-all text-[11px] leading-relaxed text-slate-400">
                       {item.url}
                     </p>
                     {item.notes?.trim() && (
@@ -149,29 +160,26 @@ export function LinkSlipModal({ items, open, onClose }: LinkSlipModalProps) {
             </div>
 
             {/* Footer */}
-            <div className="border-t border-dashed border-slate-200 bg-slate-50 px-5 py-4">
+            <div className="border-t border-dashed border-slate-200 px-5 py-4">
               <div className="flex items-center justify-between text-sm">
-                <span className="font-medium text-slate-600">
+                <span className="font-medium text-slate-500">
                   {items.length} item{items.length !== 1 ? "s" : ""}
                 </span>
                 {pricedItems.length > 0 && (
-                  <span className="font-extrabold text-indigo-700">
+                  <span className="font-extrabold text-[#4f46e5]">
                     Total {formatMMK(totalMmk)}
                   </span>
                 )}
               </div>
-              <p className="mt-2 text-center text-[10px] text-slate-400">
+              <p className="mt-2.5 text-center text-[10px] text-slate-400">
                 BFM · Thailand → Myanmar shopping service
               </p>
             </div>
           </div>
         </div>
 
-        {/* Actions */}
         <div className="border-t border-slate-100 px-5 py-4">
-          {error && (
-            <p className="mb-3 text-center text-sm text-red-600">{error}</p>
-          )}
+          {error && <p className="mb-3 text-center text-sm text-red-600">{error}</p>}
           <button
             type="button"
             onClick={handleDownload}

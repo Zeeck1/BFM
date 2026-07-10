@@ -265,7 +265,7 @@ fetchPreviewRouter.post("/lazada-search", async (req, res) => {
     return;
   }
 
-  const { results, has_more, blocked } = await searchLazadaProducts(query, page, 12);
+  const { results, has_more, blocked } = await searchLazadaProducts(query, page, 14);
 
   if (results.length === 0 && blocked) {
     res.status(503).json({

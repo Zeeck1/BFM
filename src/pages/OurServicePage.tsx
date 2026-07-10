@@ -8,6 +8,7 @@ import {
   Package,
   QrCode,
   Receipt,
+  Search,
   ShieldCheck,
   Sparkles,
   Truck,
@@ -39,6 +40,11 @@ const TRANSLATIONS = {
     ctaBtnWishlist: "Open wishlist",
     ctaBtnContact: "Contact us",
     services: [
+      {
+        title: "BFM Search Engine",
+        description:
+          "Search Lazada Thailand products by keyword inside Buy For Me. See product images, titles, and THB/MMK prices, then save items to your wishlist in one tap.",
+      },
       {
         title: "Save product links",
         description:
@@ -96,6 +102,11 @@ const TRANSLATIONS = {
     ctaBtnContact: "ဆက်သွယ်ရန်",
     services: [
       {
+        title: "BFM ရှာဖွေရေး အင်ဂျင် (Search Engine)",
+        description:
+          "Buy For Me ထဲမှာ Lazada Thailand ကုန်ပစ္စည်းများကို သော့ချက်စာလုံးဖြင့် ရှာဖွေနိုင်ပါသည်။ ပစ္စည်းပုံ၊ အမည်နှင့် ထိုင်းဘတ်/မြန်မာကျပ် စျေးနှုန်းများကို ကြည့်ရှုပြီး တစ်ချက်နှိပ်ရုံဖြင့် ဝတ်ရှ်လစ်ထဲ သိမ်းဆည်းနိုင်ပါသည်။",
+      },
+      {
         title: "ကုန်ပစ္စည်းလင့်ခ်များ သိမ်းဆည်းရန်",
         description:
           "Lazada, Shopee, Amazon နှင့် အခြား ဝဘ်ဆိုက်များမှ ကုန်ပစ္စည်း လင့်ခ်များကို ကူးယူထည့်သွင်းပါ။ ဖြစ်နိုင်ပါက ပုံ၊ အမည်နှင့် စျေးနှုန်းများကို အလိုအလျောက် ရယူပေးပါမည်။",
@@ -148,7 +159,7 @@ export function OurServicePage() {
     localStorage.setItem("bfm_service_lang", newLang);
   }
 
-  const SERVICE_ICONS = [BookmarkPlus, Globe2, MessageCircle, QrCode, Receipt, Truck];
+  const SERVICE_ICONS = [Search, BookmarkPlus, Globe2, MessageCircle, QrCode, Receipt, Truck];
 
   return (
     <div className="min-h-[calc(100vh-3.5rem)]">
