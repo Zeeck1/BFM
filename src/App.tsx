@@ -9,6 +9,7 @@ import { WelcomeAlertModal } from "./components/WelcomeAlertModal";
 import { AppLayout } from "./components/AppLayout";
 import { LinkSearchPage } from "./pages/LinkSearchPage";
 import { OurServicePage } from "./pages/OurServicePage";
+import { PrivacyPolicyPage } from "./pages/PrivacyPolicyPage";
 import { ProfilePage } from "./pages/ProfilePage";
 import { SharedListPage } from "./pages/SharedListPage";
 import { WishlistPage } from "./pages/WishlistPage";
@@ -44,6 +45,7 @@ export default function App() {
           <Route index element={<LinkSearchPage />} />
           <Route path="wishlist" element={<WishlistPage />} />
           <Route path="our-service" element={<OurServicePage />} />
+          <Route path="privacy" element={<PrivacyPolicyPage />} />
           <Route path="profile" element={<ProfilePage />} />
         </Route>
         <Route path="s/:shareId" element={<SharedListPage />} />
