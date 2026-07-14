@@ -18,6 +18,7 @@ import {
   Sparkles,
   X,
 } from "lucide-react";
+import { AdSenseUnit } from "../components/AdSenseUnit";
 import type { AppOutletContext } from "../components/AppLayout";
 import { ImageLightbox } from "../components/ImageLightbox";
 import { PlatformShowcase } from "../components/PlatformShowcase";
@@ -32,6 +33,8 @@ import { formatMMK, formatTHB } from "../lib/utils";
 import type { ProductPreview, ProductSearchResult } from "../types";
 
 type FetchState = "idle" | "loading" | "done" | "error";
+const ADSENSE_SEARCH_SLOT =
+  (import.meta.env.VITE_ADSENSE_SEARCH_SLOT as string | undefined)?.trim() ?? "";
 
 interface LazadaResultCardProps {
   result: ProductSearchResult;
@@ -529,6 +532,12 @@ export function LinkSearchPage() {
 
                 {searchResults.length > 0 ? (
                   <>
+                    {searchState === "done" && (
+                      <AdSenseUnit
+                        key={`${trimmedInput.toLowerCase()}::${searchPage}`}
+                        slotId={ADSENSE_SEARCH_SLOT}
+                      />
+                    )}
                     <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-3">
                       {searchResults.map((result) => (
                         <LazadaResultCard

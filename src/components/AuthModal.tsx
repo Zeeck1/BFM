@@ -1,6 +1,6 @@
 // src/components/AuthModal.tsx
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { AlertCircle, Loader2, X } from "lucide-react";
 import { BrandLogo } from "./BrandLogo";
 import { signInWithGoogle } from "../lib/auth";
@@ -36,6 +36,24 @@ function GoogleIcon() {
 export function AuthModal({ open, onClose }: AuthModalProps) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+
+  useEffect(() => {
+    // Browsers may restore this page from their back-forward cache after a user
+    // returns from Google's account chooser, preserving the old loading state.
+    function resetRedirectState() {
+      setLoading(false);
+    }
+
+    window.addEventListener("pageshow", resetRedirectState);
+    return () => window.removeEventListener("pageshow", resetRedirectState);
+  }, []);
+
+  useEffect(() => {
+    if (!open) {
+      setLoading(false);
+      setError("");
+    }
+  }, [open]);
 
   if (!open) return null;
 
