@@ -15,10 +15,16 @@ export interface LazadaPreviewResult {
   image_url?: string;
   site_name: string;
   price_thb?: number;
+  shop_name?: string;
+  review_count?: number;
+  average_score?: number;
+  product_colors?: string[];
+  product_sizes?: string[];
 }
 
 export interface LazadaSearchResult extends LazadaPreviewResult {
   source_id?: string;
+  sold_count?: number;
 }
 
 export interface LazadaSearchResponse {
@@ -86,6 +92,32 @@ function pickNumber(value: unknown): number | undefined {
   return undefined;
 }
 
+function pickSoldCount(value: unknown): number | undefined {
+  if (typeof value === "number") {
+    if (!Number.isFinite(value) || value < 0) return undefined;
+    return Math.floor(value);
+  }
+  if (typeof value === "string") {
+    const cleaned = value.trim().replace(/,/g, "");
+    if (!cleaned) return undefined;
+    const parsed = Number.parseInt(cleaned, 10);
+    if (!Number.isFinite(parsed) || parsed < 0) return undefined;
+    return parsed;
+  }
+  return undefined;
+}
+
+function pickAverageScore(value: unknown): number | undefined {
+  const parsed =
+    typeof value === "number"
+      ? value
+      : typeof value === "string"
+        ? Number.parseFloat(value.trim())
+        : Number.NaN;
+  if (!Number.isFinite(parsed) || parsed < 0 || parsed > 5) return undefined;
+  return parsed;
+}
+
 function absoluteLazadaUrl(value: string | undefined): string | undefined {
   if (!value) return undefined;
   if (/^https?:\/\//i.test(value)) return value;
@@ -115,6 +147,67 @@ function readJsonLdProduct(html: string): Record<string, unknown> | null {
     }
   }
   return null;
+}
+
+function findMatchingObject(source: string, startIndex: number): number {
+  let depth = 0;
+  let inString = false;
+  let quote = "";
+  let escaped = false;
+
+  for (let i = startIndex; i < source.length; i += 1) {
+    const char = source[i];
+    if (inString) {
+      if (escaped) escaped = false;
+      else if (char === "\\") escaped = true;
+      else if (char === quote) inString = false;
+      continue;
+    }
+    if (char === "\"" || char === "'") {
+      inString = true;
+      quote = char;
+      continue;
+    }
+    if (char === "{") depth += 1;
+    if (char === "}") {
+      depth -= 1;
+      if (depth === 0) return i;
+    }
+  }
+  return -1;
+}
+
+function extractVariantOptions(html: string): {
+  product_colors?: string[];
+  product_sizes?: string[];
+} {
+  const keyIndex = html.indexOf('"skuBase"');
+  if (keyIndex === -1) return {};
+  const objectStart = html.indexOf("{", keyIndex);
+  if (objectStart === -1) return {};
+  const objectEnd = findMatchingObject(html, objectStart);
+  if (objectEnd === -1) return {};
+
+  try {
+    const skuBase = JSON.parse(html.slice(objectStart, objectEnd + 1)) as {
+      properties?: Array<{ name?: unknown; values?: Array<{ name?: unknown }> }>;
+    };
+    let product_colors: string[] | undefined;
+    let product_sizes: string[] | undefined;
+
+    for (const property of skuBase.properties ?? []) {
+      const name = pickString(property.name);
+      if (!name || !Array.isArray(property.values)) continue;
+      const values = [...new Set(property.values.map((value) => pickString(value.name)).filter(Boolean))] as string[];
+      if (values.length === 0) continue;
+      if (/color|colour|สี/i.test(name)) product_colors = values;
+      if (/size|ขนาด|ไซส์/i.test(name)) product_sizes = values;
+    }
+
+    return { product_colors, product_sizes };
+  } catch {
+    return {};
+  }
 }
 
 function priceFromJsonLd(html: string): number | undefined {
@@ -418,12 +511,38 @@ function normalizeSearchItem(item: unknown): LazadaSearchResult | null {
     pickNumber(record.salePrice) ||
     pickNumber(record.discountPrice);
 
+  const sold_count =
+    pickSoldCount(record.sold_count) ||
+    pickSoldCount(record.soldCount) ||
+    pickSoldCount(record.item_sold) ||
+    pickSoldCount(record.sales);
+  const shopInfo = asRecord(record.shop_info) ?? asRecord(record.shopInfo);
+  const reviewInfo = asRecord(record.review_info) ?? asRecord(record.reviewInfo);
+  const shop_name =
+    pickString(shopInfo?.shop_name) ||
+    pickString(shopInfo?.shopName) ||
+    pickString(shopInfo?.seller_name) ||
+    pickString(record.shop_name) ||
+    pickString(record.sellerName);
+  const review_count =
+    pickSoldCount(reviewInfo?.review_count) ||
+    pickSoldCount(record.review_count) ||
+    pickSoldCount(record.comment_count);
+  const average_score =
+    pickAverageScore(reviewInfo?.average_score) ||
+    pickAverageScore(record.average_score) ||
+    pickAverageScore(record.rating);
+
   return {
     source_id: pickString(record.nid) || pickString(record.itemId) || pickString(record.skuId),
     url,
     title: decodeHtml(title),
     image_url,
     price_thb,
+    sold_count,
+    shop_name,
+    review_count,
+    average_score,
     site_name: "Lazada",
   };
 }
@@ -515,12 +634,38 @@ function normalizeRapidApiItem(item: unknown): LazadaSearchResult | null {
     pickNumber(asRecord(record.price_info)?.sale_price) ||
     pickNumber(asRecord(record.price_info)?.price);
 
+  const sold_count =
+    pickSoldCount(record.sold_count) ||
+    pickSoldCount(record.soldCount) ||
+    pickSoldCount(record.item_sold) ||
+    pickSoldCount(record.sales);
+  const shopInfo = asRecord(record.shop_info) ?? asRecord(record.shopInfo);
+  const reviewInfo = asRecord(record.review_info) ?? asRecord(record.reviewInfo);
+  const shop_name =
+    pickString(shopInfo?.shop_name) ||
+    pickString(shopInfo?.shopName) ||
+    pickString(shopInfo?.seller_name) ||
+    pickString(record.shop_name) ||
+    pickString(record.sellerName);
+  const review_count =
+    pickSoldCount(reviewInfo?.review_count) ||
+    pickSoldCount(record.review_count) ||
+    pickSoldCount(record.comment_count);
+  const average_score =
+    pickAverageScore(reviewInfo?.average_score) ||
+    pickAverageScore(record.average_score) ||
+    pickAverageScore(record.rating);
+
   return {
     source_id: sourceId,
     url,
     title: decodeHtml(title),
     image_url,
     price_thb,
+    sold_count,
+    shop_name,
+    review_count,
+    average_score,
     site_name: "Lazada",
   };
 }
@@ -613,7 +758,9 @@ export async function fetchLazadaProductPreview(rawUrl: string): Promise<LazadaP
       "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
       25_000,
       900_000,
-      (payload) => !looksBlocked(payload) && /og:title|application\/ld\+json/i.test(payload),
+      (payload) =>
+        /og:title|application\/ld\+json/i.test(payload) &&
+        (!looksBlocked(payload) || payload.includes('"skuBase"')),
     );
     const finalUrl = normalized;
 
@@ -638,6 +785,14 @@ export async function fetchLazadaProductPreview(rawUrl: string): Promise<LazadaP
       undefined;
 
     const price_thb = extractLazadaPriceThb(html);
+    const seller = asRecord(jsonLd?.seller) ?? asRecord(asRecord(jsonLd?.offers)?.seller);
+    const aggregateRating = asRecord(jsonLd?.aggregateRating);
+    const shop_name = pickString(seller?.name);
+    const review_count =
+      pickSoldCount(aggregateRating?.reviewCount) ||
+      pickSoldCount(aggregateRating?.ratingCount);
+    const average_score = pickAverageScore(aggregateRating?.ratingValue);
+    const variants = extractVariantOptions(html);
 
     return {
       url: finalUrl,
@@ -646,6 +801,10 @@ export async function fetchLazadaProductPreview(rawUrl: string): Promise<LazadaP
       image_url: image_url || undefined,
       site_name: "Lazada",
       price_thb,
+      shop_name,
+      review_count,
+      average_score,
+      ...variants,
     };
   } catch {
     return { url: normalized, site_name: "Lazada" };

@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Link } from "react-router-dom";
 import { BookmarkCheck, BookmarkPlus, ExternalLink, Loader2 } from "lucide-react";
 import { formatTHB } from "../lib/utils";
 import type { ProductPreview } from "../types";
@@ -54,9 +55,13 @@ export function ProductPreviewCard({
               {preview.site_name}
             </span>
           )}
-          <h3 className="line-clamp-3 text-base font-semibold leading-snug text-slate-900">
+          <Link
+            to={`/product-detail?url=${encodeURIComponent(preview.url)}`}
+            state={{ product: preview, from: "/" }}
+            className="line-clamp-3 block text-base font-semibold leading-snug text-slate-900 transition hover:text-indigo-600"
+          >
             {preview.title ?? preview.url}
-          </h3>
+          </Link>
           {preview.description && (
             <p className="line-clamp-2 text-sm leading-relaxed text-slate-500">
               {preview.description}

@@ -16,6 +16,21 @@ export function formatTHB(amount: number): string {
   })}`;
 }
 
+/** Compact sold count for Lazada-style product cards (e.g. "1.2k", "15"). */
+export function formatSoldCount(count: number): string {
+  if (count >= 1_000_000) {
+    const value = count / 1_000_000;
+    const rounded = value >= 10 ? Math.round(value).toString() : value.toFixed(1).replace(/\.0$/, "");
+    return `${rounded}M`;
+  }
+  if (count >= 1_000) {
+    const value = count / 1_000;
+    const rounded = value >= 100 ? Math.round(value).toString() : value.toFixed(1).replace(/\.0$/, "");
+    return `${rounded}k`;
+  }
+  return count.toLocaleString("en-US");
+}
+
 /** Map an order status slug to a human-readable label and colour. */
 export const ORDER_STATUS_META: Record<
   string,

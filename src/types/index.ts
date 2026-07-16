@@ -16,6 +16,12 @@ export interface ProductPreview {
   image_url?: string;
   price_thb?: number;
   site_name?: string;
+  shop_name?: string;
+  review_count?: number;
+  average_score?: number;
+  sold_count?: number;
+  product_colors?: string[];
+  product_sizes?: string[];
 }
 
 export interface ProductSearchResult extends ProductPreview {
@@ -33,6 +39,12 @@ export interface SavedLink {
   price_thb?: number;
   price_mmk?: number;
   site_name?: string;
+  shop_name?: string;
+  review_count?: number;
+  average_score?: number;
+  sold_count?: number;
+  product_colors?: string[];
+  product_sizes?: string[];
   notes?: string;
   created_at: string;
 }

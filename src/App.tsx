@@ -11,6 +11,7 @@ import { LinkSearchPage } from "./pages/LinkSearchPage";
 import { OurServicePage } from "./pages/OurServicePage";
 import { PrivacyPolicyPage } from "./pages/PrivacyPolicyPage";
 import { ProfilePage } from "./pages/ProfilePage";
+import { ProductDetailPage } from "./pages/ProductDetailPage";
 import { SharedListPage } from "./pages/SharedListPage";
 import { TermsOfServicePage } from "./pages/TermsOfServicePage";
 import { WishlistPage } from "./pages/WishlistPage";
@@ -49,6 +50,7 @@ export default function App() {
           <Route path="privacy" element={<PrivacyPolicyPage />} />
           <Route path="terms" element={<TermsOfServicePage />} />
           <Route path="profile" element={<ProfilePage />} />
+          <Route path="product-detail" element={<ProductDetailPage />} />
         </Route>
         <Route path="s/:shareId" element={<SharedListPage />} />
         <Route path="*" element={<Navigate to="/" replace />} />

@@ -15,11 +15,18 @@ import { supabase } from "../lib/supabase";
 import type { ProductPreview, SavedLink } from "../types";
 
 function normalizeSavedLink(row: SavedLink): SavedLink {
-  return {
+  const normalized: SavedLink = {
     ...row,
     price_thb: row.price_thb == null ? undefined : Number(row.price_thb),
     price_mmk: row.price_mmk == null ? undefined : Number(row.price_mmk),
+    review_count: row.review_count == null ? undefined : Number(row.review_count),
+    average_score: row.average_score == null ? undefined : Number(row.average_score),
+    sold_count: row.sold_count == null ? undefined : Number(row.sold_count),
+    product_colors: Array.isArray(row.product_colors) ? row.product_colors : undefined,
+    product_sizes: Array.isArray(row.product_sizes) ? row.product_sizes : undefined,
   };
+  if (row.shop_name == null) delete normalized.shop_name;
+  return normalized;
 }
 
 interface SavedItemsContextValue {
@@ -53,12 +60,24 @@ export function SavedItemsProvider({
       return;
     }
     setLoading(true);
-    const { data } = await supabase
+    const richResult = await supabase
       .from("saved_links")
-      .select("id,user_id,url,title,image_url,price_thb,price_mmk,site_name,notes,created_at")
+      .select("id,user_id,url,title,description,image_url,price_thb,price_mmk,site_name,shop_name,review_count,average_score,sold_count,product_colors,product_sizes,notes,created_at")
       .eq("user_id", userId)
       .order("created_at", { ascending: false });
-    setItems(((data ?? []) as SavedLink[]).map(normalizeSavedLink));
+    let rows = (richResult.data ?? []) as SavedLink[];
+    let fetchError = richResult.error;
+    if (fetchError) {
+      const fallback = await supabase
+        .from("saved_links")
+        .select("id,user_id,url,title,description,image_url,price_thb,price_mmk,site_name,notes,created_at")
+        .eq("user_id", userId)
+        .order("created_at", { ascending: false });
+      rows = (fallback.data ?? []) as SavedLink[];
+      fetchError = fallback.error;
+    }
+    if (fetchError) console.error("[useSavedItems] fetch failed:", fetchError.message);
+    setItems(rows.map(normalizeSavedLink));
     setLoading(false);
   }, [userId]);
 
@@ -76,27 +95,49 @@ export function SavedItemsProvider({
           ? Math.round(preview.price_thb * exchangeRate)
           : undefined;
 
-      const { data, error } = await supabase
+      const basePayload = {
+        user_id: userId,
+        url: preview.url,
+        title: preview.title ?? null,
+        description: preview.description ?? null,
+        image_url: preview.image_url ?? null,
+        ...(preview.price_thb != null
+          ? {
+              price_thb: preview.price_thb,
+              price_mmk: price_mmk ?? null,
+            }
+          : {}),
+        site_name: preview.site_name ?? null,
+      };
+      const metadataPayload = {
+        shop_name: preview.shop_name ?? null,
+        review_count: preview.review_count ?? null,
+        average_score: preview.average_score ?? null,
+        sold_count: preview.sold_count ?? null,
+        product_colors: preview.product_colors ?? null,
+        product_sizes: preview.product_sizes ?? null,
+      };
+
+      let { data, error } = await supabase
         .from("saved_links")
         .upsert(
           {
-            user_id: userId,
-            url: preview.url,
-            title: preview.title ?? null,
-            description: preview.description ?? null,
-            image_url: preview.image_url ?? null,
-            ...(preview.price_thb != null
-              ? {
-                  price_thb: preview.price_thb,
-                  price_mmk: price_mmk ?? null,
-                }
-              : {}),
-            site_name: preview.site_name ?? null,
+            ...basePayload,
+            ...metadataPayload,
           },
           { onConflict: "user_id,url" },
         )
         .select()
         .single();
+      if (error) {
+        const fallback = await supabase
+          .from("saved_links")
+          .upsert(basePayload, { onConflict: "user_id,url" })
+          .select()
+          .single();
+        data = fallback.data;
+        error = fallback.error;
+      }
 
       setSaving(false);
       if (error || !data) return null;

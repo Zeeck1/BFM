@@ -347,9 +347,9 @@ export function WishlistPage() {
       {/* Grid */}
       <section className="mx-auto max-w-7xl px-4 py-5 sm:px-6 sm:py-6">
         {loading ? (
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+          <div className="grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-3 xl:grid-cols-4">
             {Array.from({ length: 6 }).map((_, i) => (
-              <div key={i} className="aspect-[3/4] shimmer rounded-xl" />
+              <div key={i} className="aspect-[3/4] shimmer rounded-2xl" />
             ))}
           </div>
         ) : !user || items.length === 0 ? (
@@ -357,7 +357,7 @@ export function WishlistPage() {
         ) : filteredItems.length === 0 ? (
           <NoSearchResults query={wishlistSearch.trim()} onClear={() => setWishlistSearch("")} />
         ) : (
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+          <div className="grid grid-cols-2 items-stretch gap-3 sm:gap-4 md:grid-cols-3 xl:grid-cols-4">
             {filteredItems.map((item) => (
               <SavedItemCard
                 key={item.id}

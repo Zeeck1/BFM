@@ -1,6 +1,7 @@
 // src/components/SavedItemCard.tsx
 
 import { useEffect, useRef, useState } from "react";
+import { Link } from "react-router-dom";
 import {
   Check,
   Eye,
@@ -215,20 +216,20 @@ export function SavedItemCard({
   return (
     <>
       <div
-        className={`group relative flex flex-col rounded-xl bg-white transition-all duration-200 ${
+        className={`group relative flex h-full flex-col rounded-2xl bg-white transition-all duration-200 ${
           selected
-            ? "ring-2 ring-indigo-500 shadow-md shadow-indigo-100"
-            : "shadow-sm hover:shadow-md border border-slate-200/80"
+            ? "ring-2 ring-indigo-500 shadow-lg shadow-indigo-100"
+            : "border border-slate-200/80 shadow-sm hover:border-indigo-200 hover:shadow-lg"
         } ${menuOpen ? "z-30" : ""}`}
       >
         {/* ── Image ── */}
-        <div className="relative aspect-[4/3] w-full overflow-hidden rounded-t-xl bg-slate-50">
+        <div className="relative aspect-[4/3] w-full overflow-hidden rounded-t-2xl bg-slate-50">
           {/* Checkbox */}
           <button
             type="button"
             onClick={onToggleSelect}
             aria-pressed={selected}
-            className={`absolute left-2 top-2 z-10 flex h-5 w-5 items-center justify-center rounded-md transition-all duration-150 ${
+            className={`absolute left-2.5 top-2.5 z-10 flex h-6 w-6 items-center justify-center rounded-lg transition-all duration-150 ${
               selected
                 ? "bg-indigo-600 text-white shadow-sm"
                 : "bg-white/80 text-transparent shadow-sm backdrop-blur-sm hover:bg-white group-hover:text-slate-300"
@@ -238,7 +239,7 @@ export function SavedItemCard({
           </button>
 
           {/* Options */}
-          <div ref={menuRef} className="absolute right-2 top-2 z-10">
+          <div ref={menuRef} className="absolute right-2.5 top-2.5 z-10">
             <button
               type="button"
               onClick={() => {
@@ -247,7 +248,7 @@ export function SavedItemCard({
               }}
               aria-expanded={menuOpen}
               aria-haspopup="menu"
-              className="flex h-7 w-7 items-center justify-center rounded-lg bg-white/80 text-slate-500 shadow-sm backdrop-blur-sm transition hover:bg-white hover:text-slate-800 sm:opacity-0 sm:group-hover:opacity-100 sm:focus:opacity-100"
+              className="flex h-8 w-8 items-center justify-center rounded-xl bg-white/90 text-slate-500 shadow-sm backdrop-blur-sm transition hover:bg-white hover:text-slate-800 sm:opacity-0 sm:group-hover:opacity-100 sm:focus:opacity-100"
             >
               <MoreHorizontal className="h-3.5 w-3.5" />
             </button>
@@ -274,16 +275,20 @@ export function SavedItemCard({
         </div>
 
         {/* ── Body ── */}
-        <div className="flex flex-1 flex-col gap-2 rounded-b-xl p-3">
+        <div className="flex flex-1 flex-col gap-2.5 p-3 sm:p-4">
           {item.site_name && (
-            <span className="w-fit rounded-md bg-slate-100 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-slate-500">
+            <span className="w-fit rounded-md bg-indigo-50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-indigo-600">
               {item.site_name}
             </span>
           )}
 
-          <p className="line-clamp-2 flex-1 text-sm font-medium leading-snug text-slate-800">
+          <Link
+            to={`/product-detail?id=${encodeURIComponent(item.id)}`}
+            state={{ from: "/wishlist" }}
+            className="line-clamp-2 min-h-10 text-xs font-semibold leading-5 text-slate-800 transition hover:text-indigo-600 sm:text-sm"
+          >
             {item.title ?? item.url}
-          </p>
+          </Link>
 
           {item.notes?.trim() && (
             <button
@@ -296,7 +301,7 @@ export function SavedItemCard({
             </button>
           )}
 
-          <div className="mt-auto pt-1">
+          <div className="mt-auto border-t border-slate-100 pt-3">
             {item.price_mmk != null ? (
               <button
                 type="button"
@@ -304,7 +309,7 @@ export function SavedItemCard({
                 className="text-left transition hover:opacity-70"
                 title="Edit price"
               >
-                <p className="text-sm font-bold text-slate-900">{formatMMK(item.price_mmk)}</p>
+                <p className="text-sm font-bold text-slate-900 sm:text-base">{formatMMK(item.price_mmk)}</p>
                 {item.price_thb != null && (
                   <p className="text-[11px] text-slate-400">{formatTHB(item.price_thb)}</p>
                 )}
@@ -320,6 +325,13 @@ export function SavedItemCard({
                 Set price
               </button>
             )}
+            <Link
+              to={`/product-detail?id=${encodeURIComponent(item.id)}`}
+              state={{ from: "/wishlist" }}
+              className="mt-3 inline-flex w-full items-center justify-center rounded-xl bg-slate-900 px-3 py-2.5 text-[11px] font-semibold text-white transition hover:bg-indigo-600 sm:text-xs"
+            >
+              View details
+            </Link>
           </div>
         </div>
 

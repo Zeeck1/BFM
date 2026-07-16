@@ -29,7 +29,7 @@ import { searchLazadaProducts } from "../lib/lazadaSearch";
 import { loadLastLazadaSearch } from "../lib/lazadaSearchCache";
 import { fetchPreview } from "../lib/preview";
 import { isFetchableUrl } from "../lib/utils";
-import { formatMMK, formatTHB } from "../lib/utils";
+import { formatMMK, formatSoldCount, formatTHB } from "../lib/utils";
 import type { ProductPreview, ProductSearchResult } from "../types";
 
 type FetchState = "idle" | "loading" | "done" | "error";
@@ -59,15 +59,20 @@ function LazadaResultCard({
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const hasImage = Boolean(result.image_url && !imgError);
 
+  const soldLabel =
+    result.sold_count != null && result.sold_count > 0
+      ? `${formatSoldCount(result.sold_count)} sold`
+      : "\u00a0";
+
   return (
-    <article className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-sm transition hover:border-indigo-200 hover:shadow-md">
+    <article className="flex h-full flex-col overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-sm transition hover:border-indigo-200 hover:shadow-md">
       <button
         type="button"
         onClick={() => {
           if (hasImage) setLightboxOpen(true);
         }}
         title={hasImage ? "View full image" : "Image not available"}
-        className="group relative flex aspect-[4/3] w-full items-center justify-center bg-slate-50/80 p-2 sm:p-3"
+        className="group relative flex aspect-[4/3] w-full shrink-0 items-center justify-center bg-slate-50/80 p-2 sm:p-3"
       >
         {hasImage ? (
           <img
@@ -83,33 +88,46 @@ function LazadaResultCard({
         )}
       </button>
 
-      <div className="space-y-2.5 border-t border-slate-100 p-3 sm:space-y-3 sm:p-4">
-        <div className="space-y-1">
-          <span className="inline-block rounded-md bg-orange-50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-orange-600">
+      <div className="flex flex-1 flex-col border-t border-slate-100 p-3 sm:p-4">
+        <div className="flex flex-1 flex-col gap-1">
+          <span className="inline-block w-fit rounded-md bg-orange-50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-orange-600">
             Lazada
           </span>
-          <h3 className="line-clamp-2 text-xs font-semibold leading-snug text-slate-900 sm:text-sm">
+          <Link
+            to={`/product-detail?url=${encodeURIComponent(result.url)}`}
+            state={{ product: result, from: "/" }}
+            className="line-clamp-2 block h-9 overflow-hidden text-xs font-semibold leading-[1.125rem] text-slate-900 transition hover:text-indigo-600 sm:h-10 sm:text-sm sm:leading-5"
+          >
             {result.title ?? result.url}
-          </h3>
-          {result.price_thb != null ? (
-            <>
-              <p className="text-base font-bold text-slate-900 sm:text-lg">{formatTHB(result.price_thb)}</p>
-              <p className="text-[11px] font-medium text-slate-500 sm:text-xs">
-                ≈ {formatMMK(result.price_thb * rate)}
-              </p>
-            </>
-          ) : (
-            <p className="text-xs font-semibold text-slate-400 sm:text-sm">Price not available</p>
-          )}
+          </Link>
+          <div className="min-h-[2.5rem] sm:min-h-[2.75rem]">
+            {result.price_thb != null ? (
+              <>
+                <p className="text-base font-bold text-slate-900 sm:text-lg">{formatTHB(result.price_thb)}</p>
+                <p className="text-[11px] font-medium text-slate-500 sm:text-xs">
+                  ≈ {formatMMK(result.price_thb * rate)}
+                </p>
+              </>
+            ) : (
+              <p className="text-xs font-semibold text-slate-400 sm:text-sm">Price not available</p>
+            )}
+          </div>
+          <p
+            className={`min-h-[1rem] text-[11px] font-medium sm:min-h-[1.125rem] sm:text-xs ${
+              result.sold_count != null && result.sold_count > 0 ? "text-emerald-600" : "invisible"
+            }`}
+          >
+            {soldLabel}
+          </p>
         </div>
 
-        <div className="flex flex-col gap-1.5 sm:flex-row sm:flex-wrap sm:gap-2">
+        <div className="mt-auto grid grid-cols-2 gap-1.5 pt-2.5 sm:flex sm:flex-row sm:gap-2">
           {loggedIn ? (
             <button
               type="button"
               onClick={onSave}
               disabled={saving || saved}
-              className={`inline-flex w-full items-center justify-center gap-1.5 rounded-lg px-2.5 py-2 text-[11px] font-semibold transition sm:w-auto sm:gap-2 sm:px-3 sm:text-xs ${
+              className={`inline-flex w-full items-center justify-center gap-1 rounded-lg px-2 py-2 text-[10px] font-semibold transition sm:gap-2 sm:px-3 sm:text-xs ${
                 saved
                   ? "border border-emerald-200 bg-emerald-50 text-emerald-700"
                   : "bg-slate-900 text-white hover:bg-slate-700 disabled:opacity-50"
@@ -122,7 +140,7 @@ function LazadaResultCard({
             <button
               type="button"
               onClick={onSignIn}
-              className="inline-flex w-full items-center justify-center gap-1.5 rounded-lg bg-slate-900 px-2.5 py-2 text-[11px] font-semibold text-white hover:bg-slate-700 sm:w-auto sm:gap-2 sm:px-3 sm:text-xs"
+              className="inline-flex w-full items-center justify-center gap-1 rounded-lg bg-slate-900 px-2 py-2 text-[10px] font-semibold text-white hover:bg-slate-700 sm:gap-2 sm:px-3 sm:text-xs"
             >
               <BookmarkPlus className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
               Sign in
@@ -133,7 +151,7 @@ function LazadaResultCard({
             href={result.url}
             target="_blank"
             rel="noopener noreferrer"
-            className="inline-flex w-full items-center justify-center gap-1.5 rounded-lg border border-slate-200 px-2.5 py-2 text-[11px] font-semibold text-slate-600 hover:bg-slate-50 sm:w-auto sm:px-3 sm:text-xs"
+            className="inline-flex w-full items-center justify-center gap-1 rounded-lg border border-slate-200 px-2 py-2 text-[10px] font-semibold text-slate-600 hover:bg-slate-50 sm:w-auto sm:px-3 sm:text-xs"
           >
             <ExternalLink className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
             Open
@@ -562,7 +580,7 @@ export function LinkSearchPage() {
                         slotId={ADSENSE_SEARCH_SLOT}
                       />
                     )}
-                    <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-3">
+                    <div className="grid grid-cols-2 items-stretch gap-3 sm:gap-4 lg:grid-cols-3">
                       {searchResults.map((result) => (
                         <LazadaResultCard
                           key={result.source_id ?? result.url}
