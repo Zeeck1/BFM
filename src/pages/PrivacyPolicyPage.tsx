@@ -189,6 +189,13 @@ export function PrivacyPolicyPage() {
               Contact Buy For Me on Messenger
               <ExternalLink className="h-4 w-4" />
             </a>
+            <p className="pt-2">
+              Also see our{" "}
+              <Link to="/terms" className="font-semibold text-indigo-600 hover:text-indigo-700">
+                Terms of Service
+              </Link>
+              .
+            </p>
           </PolicySection>
         </div>
       </article>

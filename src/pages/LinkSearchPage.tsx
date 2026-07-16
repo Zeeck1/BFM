@@ -448,6 +448,10 @@ export function LinkSearchPage() {
                 <Link to="/privacy" className="text-indigo-600 hover:text-indigo-700">
                   Privacy Policy
                 </Link>
+                <span className="text-slate-300">·</span>
+                <Link to="/terms" className="text-indigo-600 hover:text-indigo-700">
+                  Terms of Service
+                </Link>
               </div>
             </div>
             <div className="rounded-2xl border border-dashed border-slate-200 bg-white p-8 text-center">

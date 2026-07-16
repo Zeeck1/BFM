@@ -26,12 +26,15 @@ function AppLayoutShell({ user, onSignIn }: AppLayoutProps) {
       <footer className="border-t border-slate-200 bg-white px-4 pb-[calc(5.5rem+env(safe-area-inset-bottom))] pt-5 lg:py-5">
         <div className="mx-auto flex max-w-7xl flex-col items-center justify-between gap-2 text-center text-xs text-slate-500 sm:flex-row sm:text-left">
           <p>© {new Date().getFullYear()} Buy For Me. Thailand → Myanmar shopping service.</p>
-          <div className="flex items-center gap-4">
+          <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1 sm:justify-end">
             <Link to="/our-service" className="transition hover:text-indigo-600">
               Our Service
             </Link>
             <Link to="/privacy" className="font-semibold transition hover:text-indigo-600">
               Privacy Policy
+            </Link>
+            <Link to="/terms" className="font-semibold transition hover:text-indigo-600">
+              Terms of Service
             </Link>
           </div>
         </div>
