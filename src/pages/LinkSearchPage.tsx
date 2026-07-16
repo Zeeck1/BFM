@@ -431,14 +431,34 @@ export function LinkSearchPage() {
       <section className="bg-[#f8fafc] px-4 pb-8 pt-2 sm:px-6 sm:pb-10">
         <div ref={resultsRef} className="mx-auto max-w-5xl scroll-mt-16">
         {!hasActivity && (
-          <div className="rounded-2xl border border-dashed border-slate-200 bg-white p-8 text-center">
-            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-xl bg-slate-100">
-              <Search className="h-6 w-6 text-slate-400" />
+          <div className="space-y-4">
+            <div className="rounded-2xl border border-slate-200 bg-white p-6 sm:p-8">
+              <h2 className="text-base font-bold text-slate-900">About Buy For Me</h2>
+              <p className="mt-2 text-sm leading-relaxed text-slate-600">
+                Buy For Me (BFM) helps Myanmar customers shop from Thailand. Search Lazada products,
+                paste product links, save items to your wishlist, share lists with QR codes, and
+                request purchases through Messenger. Sign in with Google only to identify your
+                account and save your shopping list.
+              </p>
+              <div className="mt-4 flex flex-wrap items-center gap-3 text-sm font-semibold">
+                <Link to="/our-service" className="text-indigo-600 hover:text-indigo-700">
+                  Our Service
+                </Link>
+                <span className="text-slate-300">·</span>
+                <Link to="/privacy" className="text-indigo-600 hover:text-indigo-700">
+                  Privacy Policy
+                </Link>
+              </div>
             </div>
-            <p className="mt-3 text-sm font-semibold text-slate-700">Search Lazada products</p>
-            <p className="mt-1 text-sm text-slate-400">
-              Type a product name or paste a product URL above.
-            </p>
+            <div className="rounded-2xl border border-dashed border-slate-200 bg-white p-8 text-center">
+              <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-xl bg-slate-100">
+                <Search className="h-6 w-6 text-slate-400" />
+              </div>
+              <p className="mt-3 text-sm font-semibold text-slate-700">Search Lazada products</p>
+              <p className="mt-1 text-sm text-slate-400">
+                Type a product name or paste a product URL above.
+              </p>
+            </div>
           </div>
         )}
 

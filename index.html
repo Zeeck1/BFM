@@ -4,7 +4,12 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/png" href="/src/assets/images/BFM_logo.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="description" content="Buy For Me – Shop Thai marketplaces, delivered to Myanmar." />
+    <meta
+      name="description"
+      content="Buy For Me (BFM) helps Myanmar customers shop from Thailand. Search Lazada products, save product links, share wishlists, and request purchases through Messenger."
+    />
+    <meta name="application-name" content="Buy For Me" />
+    <link rel="canonical" href="https://buyforme.world/" />
     <title>Buy For Me | BFM</title>
     <!-- Inter font via Google Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -15,7 +20,41 @@
     />
   </head>
   <body>
-    <div id="root"></div>
+    <!--
+      Static homepage content for crawlers and Google OAuth verification.
+      React replaces #root after JavaScript loads.
+    -->
+    <div id="root">
+      <main style="font-family: Inter, Arial, sans-serif; max-width: 720px; margin: 0 auto; padding: 32px 20px; color: #0f172a; line-height: 1.6;">
+        <h1>Buy For Me (BFM)</h1>
+        <p>
+          Buy For Me is a Thailand → Myanmar shopping service. Search Lazada Thailand products,
+          paste product links from Lazada, Shopee, Amazon and more, save items to your wishlist,
+          share lists with QR codes, and request purchases through Messenger.
+        </p>
+        <p>
+          Sign in with Google to save your wishlist and manage your shopping requests. We use your
+          Google account only to identify you and provide account features.
+        </p>
+        <p>
+          <a href="https://buyforme.world/our-service">Our Service</a>
+          ·
+          <a href="https://buyforme.world/privacy">Privacy Policy</a>
+        </p>
+      </main>
+    </div>
+    <noscript>
+      <main style="font-family: Inter, Arial, sans-serif; max-width: 720px; margin: 0 auto; padding: 32px 20px; color: #0f172a; line-height: 1.6;">
+        <h1>Buy For Me (BFM)</h1>
+        <p>
+          Buy For Me helps Myanmar customers shop from Thailand. Search products, save links,
+          share wishlists, and order through Messenger.
+        </p>
+        <p>
+          <a href="https://buyforme.world/privacy">Privacy Policy</a>
+        </p>
+      </main>
+    </noscript>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
