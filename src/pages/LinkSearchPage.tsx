@@ -28,6 +28,7 @@ import { useSavedItems } from "../contexts/SavedItemsProvider";
 import { searchLazadaProducts } from "../lib/lazadaSearch";
 import { loadLastLazadaSearch } from "../lib/lazadaSearchCache";
 import { fetchPreview } from "../lib/preview";
+import { recordSearchHistory } from "../lib/searchHistory";
 import { isFetchableUrl } from "../lib/utils";
 import { formatMMK, formatSoldCount, formatTHB } from "../lib/utils";
 import type { ProductPreview, ProductSearchResult } from "../types";
@@ -59,10 +60,8 @@ function LazadaResultCard({
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const hasImage = Boolean(result.image_url && !imgError);
 
-  const soldLabel =
-    result.sold_count != null && result.sold_count > 0
-      ? `${formatSoldCount(result.sold_count)} sold`
-      : "\u00a0";
+  const hasShopName = Boolean(result.shop_name?.trim());
+  const hasSoldCount = result.sold_count != null && result.sold_count > 0;
 
   return (
     <article className="flex h-full flex-col overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-sm transition hover:border-indigo-200 hover:shadow-md">
@@ -72,77 +71,94 @@ function LazadaResultCard({
           if (hasImage) setLightboxOpen(true);
         }}
         title={hasImage ? "View full image" : "Image not available"}
-        className="group relative flex aspect-[4/3] w-full shrink-0 items-center justify-center bg-slate-50/80 p-2 sm:p-3"
+        className="group relative block aspect-square w-full shrink-0 overflow-hidden bg-slate-50"
       >
         {hasImage ? (
-          <img
-            src={result.image_url}
-            alt={result.title ?? "Lazada product"}
-            className="h-full w-full object-contain transition-transform duration-200 group-hover:scale-[1.03]"
-            onError={() => setImgError(true)}
-          />
+          <span className="absolute inset-0 flex items-center justify-center p-2.5 sm:p-3">
+            <img
+              src={result.image_url}
+              alt={result.title ?? "Lazada product"}
+              className="h-full w-full object-cover object-center transition-transform duration-200 group-hover:scale-[1.03]"
+              onError={() => setImgError(true)}
+            />
+          </span>
         ) : (
-          <div className="flex h-24 w-24 items-center justify-center rounded-2xl bg-indigo-50 text-sm font-bold text-indigo-600">
-            Lazada
-          </div>
+          <span className="absolute inset-0 flex items-center justify-center">
+            <div className="flex h-20 w-20 items-center justify-center rounded-2xl bg-indigo-50 text-sm font-bold text-indigo-600 sm:h-24 sm:w-24">
+              Lazada
+            </div>
+          </span>
         )}
       </button>
 
-      <div className="flex flex-1 flex-col border-t border-slate-100 p-3 sm:p-4">
-        <div className="flex flex-1 flex-col gap-1">
-          <span className="inline-block w-fit rounded-md bg-orange-50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-orange-600">
-            Lazada
-          </span>
+      <div className="flex min-h-0 flex-1 flex-col border-t border-slate-100 p-3 sm:p-4">
+        <div className="flex min-h-0 flex-1 flex-col gap-1.5">
+          <div className="h-5 shrink-0">
+            <span className="inline-block rounded-md bg-orange-50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-orange-600">
+              Lazada
+            </span>
+          </div>
           <Link
             to={`/product-detail?url=${encodeURIComponent(result.url)}`}
             state={{ product: result, from: "/" }}
-            className="line-clamp-2 block h-9 overflow-hidden text-xs font-semibold leading-[1.125rem] text-slate-900 transition hover:text-indigo-600 sm:h-10 sm:text-sm sm:leading-5"
+            className="line-clamp-2 block h-9 shrink-0 overflow-hidden text-xs font-semibold leading-[1.125rem] text-slate-900 transition hover:text-indigo-600 sm:h-10 sm:text-sm sm:leading-5"
           >
             {result.title ?? result.url}
           </Link>
-          <div className="min-h-[2.5rem] sm:min-h-[2.75rem]">
+          <div className="min-h-[2.75rem] shrink-0 sm:min-h-[3rem]">
             {result.price_thb != null ? (
               <>
-                <p className="text-base font-bold text-slate-900 sm:text-lg">{formatTHB(result.price_thb)}</p>
-                <p className="text-[11px] font-medium text-slate-500 sm:text-xs">
+                <p className="truncate text-base font-bold leading-tight text-slate-900 sm:text-lg">
+                  {formatTHB(result.price_thb)}
+                </p>
+                <p className="mt-0.5 truncate text-[11px] font-medium text-slate-500 sm:text-xs">
                   ≈ {formatMMK(result.price_thb * rate)}
                 </p>
               </>
             ) : (
-              <p className="text-xs font-semibold text-slate-400 sm:text-sm">Price not available</p>
+              <>
+                <p className="text-xs font-semibold leading-tight text-slate-400 sm:text-sm">Price not available</p>
+                <p className="mt-0.5 text-[11px] invisible sm:text-xs">&nbsp;</p>
+              </>
             )}
           </div>
-          <p
-            className={`min-h-[1rem] text-[11px] font-medium sm:min-h-[1.125rem] sm:text-xs ${
-              result.sold_count != null && result.sold_count > 0 ? "text-emerald-600" : "invisible"
-            }`}
-          >
-            {soldLabel}
+          <p className="line-clamp-1 min-h-[1.125rem] shrink-0 text-[11px] font-medium sm:text-xs">
+            {hasShopName && <span className="text-slate-600">{result.shop_name}</span>}
+            {hasShopName && hasSoldCount && <span className="text-slate-400"> · </span>}
+            {hasSoldCount ? (
+              <span className="text-emerald-600">{formatSoldCount(result.sold_count!)} sold</span>
+            ) : (
+              !hasShopName && <span className="invisible">&nbsp;</span>
+            )}
           </p>
         </div>
 
-        <div className="mt-auto grid grid-cols-2 gap-1.5 pt-2.5 sm:flex sm:flex-row sm:gap-2">
+        <div className="mt-auto grid shrink-0 grid-cols-2 gap-1.5 pt-3">
           {loggedIn ? (
             <button
               type="button"
               onClick={onSave}
               disabled={saving || saved}
-              className={`inline-flex w-full items-center justify-center gap-1 rounded-lg px-2 py-2 text-[10px] font-semibold transition sm:gap-2 sm:px-3 sm:text-xs ${
+              className={`inline-flex h-9 w-full items-center justify-center gap-1 rounded-lg px-2 text-[10px] font-semibold transition sm:text-xs ${
                 saved
                   ? "border border-emerald-200 bg-emerald-50 text-emerald-700"
                   : "bg-slate-900 text-white hover:bg-slate-700 disabled:opacity-50"
               }`}
             >
-              {saved ? <CheckCircle2 className="h-3.5 w-3.5 sm:h-4 sm:w-4" /> : <BookmarkPlus className="h-3.5 w-3.5 sm:h-4 sm:w-4" />}
+              {saved ? (
+                <CheckCircle2 className="h-3.5 w-3.5 shrink-0 sm:h-4 sm:w-4" />
+              ) : (
+                <BookmarkPlus className="h-3.5 w-3.5 shrink-0 sm:h-4 sm:w-4" />
+              )}
               {saved ? "Saved" : "Save"}
             </button>
           ) : (
             <button
               type="button"
               onClick={onSignIn}
-              className="inline-flex w-full items-center justify-center gap-1 rounded-lg bg-slate-900 px-2 py-2 text-[10px] font-semibold text-white hover:bg-slate-700 sm:gap-2 sm:px-3 sm:text-xs"
+              className="inline-flex h-9 w-full items-center justify-center gap-1 rounded-lg bg-slate-900 px-2 text-[10px] font-semibold text-white hover:bg-slate-700 sm:text-xs"
             >
-              <BookmarkPlus className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+              <BookmarkPlus className="h-3.5 w-3.5 shrink-0 sm:h-4 sm:w-4" />
               Sign in
             </button>
           )}
@@ -151,9 +167,9 @@ function LazadaResultCard({
             href={result.url}
             target="_blank"
             rel="noopener noreferrer"
-            className="inline-flex w-full items-center justify-center gap-1 rounded-lg border border-slate-200 px-2 py-2 text-[10px] font-semibold text-slate-600 hover:bg-slate-50 sm:w-auto sm:px-3 sm:text-xs"
+            className="inline-flex h-9 w-full items-center justify-center gap-1 rounded-lg border border-slate-200 px-2 text-[10px] font-semibold text-slate-600 hover:bg-slate-50 sm:text-xs"
           >
-            <ExternalLink className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+            <ExternalLink className="h-3.5 w-3.5 shrink-0 sm:h-4 sm:w-4" />
             Open
           </a>
         </div>
@@ -276,6 +292,9 @@ export function LinkSearchPage() {
       setSearchPage(response.page);
       setSearchHasMore(response.hasMore);
       setSearchState("done");
+      if (user && page === 1) {
+        void recordSearchHistory(user.id, query);
+      }
     } catch (e) {
       setSearchError(e instanceof Error ? e.message : "Failed to search Lazada products");
       setSearchHasMore(false);

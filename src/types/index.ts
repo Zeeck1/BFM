@@ -3,8 +3,10 @@
 export type OrderStatus =
   | "pending"
   | "paid"
+  | "processing"
   | "purchasing"
   | "received_at_bkk"
+  | "warehouse_bkk"
   | "in_transit"
   | "delivered";
 
@@ -51,6 +53,9 @@ export interface SavedLink {
 
 export interface Profile {
   id: string;
+  email?: string | null;
+  username?: string | null;
+  role?: "admin" | "user";
   full_name: string | null;
   phone: string | null;
   address: string | null;

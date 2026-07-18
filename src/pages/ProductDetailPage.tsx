@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useLocation, useNavigate, useOutletContext, useSearchParams } from "react-router-dom";
 import {
   ArrowLeft,
@@ -8,6 +8,8 @@ import {
   ImageOff,
   Loader2,
   Pencil,
+  QrCode,
+  Receipt,
   Star,
   StickyNote,
   Store,
@@ -15,12 +17,16 @@ import {
 } from "lucide-react";
 import type { AppOutletContext } from "../components/AppLayout";
 import { ImageLightbox } from "../components/ImageLightbox";
+import { LinkSlipModal } from "../components/LinkSlipModal";
 import { ProductNotesModal } from "../components/ProductNotesModal";
 import { ProductPriceModal } from "../components/ProductPriceModal";
+import { QRCodeModal } from "../components/QRCodeModal";
 import { SiteAvatar } from "../components/SiteAvatar";
 import { useSavedItems } from "../contexts/SavedItemsProvider";
 import { useExchangeRate } from "../hooks/useExchangeRate";
+import { userAvatarUrl, userDisplayName } from "../lib/auth";
 import { fetchPreview } from "../lib/preview";
+import { getOrCreateSharedList, shareUrl, timeRemaining } from "../lib/shareList";
 import { formatMMK, formatSoldCount, formatTHB } from "../lib/utils";
 import type { ProductPreview, ProductSearchResult, SavedLink } from "../types";
 
@@ -54,6 +60,12 @@ export function ProductDetailPage() {
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const [notesOpen, setNotesOpen] = useState(false);
   const [priceOpen, setPriceOpen] = useState(false);
+  const [slipItem, setSlipItem] = useState<SavedLink | null>(null);
+  const [qrOpen, setQrOpen] = useState(false);
+  const [qrShareUrl, setQrShareUrl] = useState("");
+  const [qrExpiresIn, setQrExpiresIn] = useState("");
+  const [creatingQr, setCreatingQr] = useState(false);
+  const wasSignedIn = useRef(Boolean(user));
 
   const savedItem = useMemo(
     () => (savedId ? items.find((item) => item.id === savedId) ?? null : null),
@@ -70,6 +82,19 @@ export function ProductDetailPage() {
   const productLanguage = detectProductLanguage(
     `${product?.title ?? ""} ${product?.description ?? ""}`,
   );
+
+  useEffect(() => {
+    if (wasSignedIn.current && !user) {
+      setFetchedProduct(null);
+      setLightboxOpen(false);
+      setNotesOpen(false);
+      setPriceOpen(false);
+      setSlipItem(null);
+      setQrOpen(false);
+      navigate("/", { replace: true });
+    }
+    wasSignedIn.current = Boolean(user);
+  }, [navigate, user]);
 
   useEffect(() => {
     if (!product || productLanguage === "en") return;
@@ -118,6 +143,37 @@ export function ProductDetailPage() {
         state: { product, from: "/" } satisfies DetailLocationState,
       });
     }
+  }
+
+  async function ensureSavedProduct(): Promise<SavedLink | null> {
+    if (!product || !user) {
+      onSignIn();
+      return null;
+    }
+    if (savedProduct) return savedProduct;
+    return save(product, rate);
+  }
+
+  async function handleLinkSlip() {
+    const saved = await ensureSavedProduct();
+    if (saved) setSlipItem(saved);
+  }
+
+  async function handleQrCode() {
+    if (!savedProduct || !user) return;
+
+    setCreatingQr(true);
+    const shared = await getOrCreateSharedList(
+      user.id,
+      userDisplayName(user),
+      [savedProduct],
+      userAvatarUrl(user),
+    );
+    setCreatingQr(false);
+    if (!shared) return;
+    setQrShareUrl(shareUrl(shared.id));
+    setQrExpiresIn(timeRemaining(shared));
+    setQrOpen(true);
   }
 
   if (savedId && itemsLoading) {
@@ -342,6 +398,31 @@ export function ProductDetailPage() {
                 </a>
               </div>
 
+              {user && (
+                <div className={`mt-3 grid gap-2 ${savedProduct ? "sm:grid-cols-2" : ""}`}>
+                  <button
+                    type="button"
+                    onClick={handleLinkSlip}
+                    disabled={saving}
+                    className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 px-4 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:opacity-60"
+                  >
+                    <Receipt className="h-4 w-4" />
+                    Link Slip
+                  </button>
+                  {savedProduct && (
+                    <button
+                      type="button"
+                      onClick={handleQrCode}
+                      disabled={creatingQr}
+                      className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 px-4 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:opacity-60"
+                    >
+                      {creatingQr ? <Loader2 className="h-4 w-4 animate-spin" /> : <QrCode className="h-4 w-4" />}
+                      {creatingQr ? "Creating QR…" : "QR Code"}
+                    </button>
+                  )}
+                </div>
+              )}
+
               <div className="mt-5 border-t border-slate-100 pt-4">
                 <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">Original product link</p>
                 <a
@@ -369,6 +450,20 @@ export function ProductDetailPage() {
         open={priceOpen}
         onClose={() => setPriceOpen(false)}
         onSave={updatePrice}
+      />
+      <LinkSlipModal
+        items={slipItem ? [slipItem] : []}
+        open={slipItem != null}
+        onClose={() => setSlipItem(null)}
+      />
+      <QRCodeModal
+        open={qrOpen}
+        onClose={() => setQrOpen(false)}
+        shareUrl={qrShareUrl}
+        ownerName={user ? userDisplayName(user) : ""}
+        avatarUrl={user ? userAvatarUrl(user) : null}
+        itemCount={1}
+        expiresIn={qrExpiresIn}
       />
       {lightboxOpen && product.image_url && (
         <ImageLightbox src={product.image_url} alt={product.title ?? "Product"} onClose={() => setLightboxOpen(false)} />

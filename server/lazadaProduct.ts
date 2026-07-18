@@ -718,12 +718,12 @@ async function searchViaRapidApi(
 export async function searchLazadaProducts(
   query: string,
   page = 1,
-  pageSize = 14,
+  pageSize = 15,
 ): Promise<LazadaSearchResponse> {
   const cleaned = query.trim();
   if (!cleaned) return { results: [], has_more: false };
   const safePage = Number.isFinite(page) && page > 0 ? Math.floor(page) : 1;
-  const safePageSize = Number.isFinite(pageSize) ? Math.min(Math.max(Math.floor(pageSize), 1), 40) : 14;
+  const safePageSize = Number.isFinite(pageSize) ? Math.min(Math.max(Math.floor(pageSize), 1), 40) : 15;
 
   const cacheKey = `${cleaned.toLowerCase()}::${safePage}::${safePageSize}`;
   const cached = getCachedSearch(cacheKey);

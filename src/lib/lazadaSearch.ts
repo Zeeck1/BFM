@@ -8,6 +8,8 @@ interface LazadaSearchResponse {
   error?: string;
 }
 
+export const LAZADA_SEARCH_PAGE_SIZE = 15;
+
 export interface LazadaSearchPage {
   results: ProductSearchResult[];
   page: number;
@@ -32,7 +34,7 @@ export async function searchLazadaProducts(
   const res = await fetch("/api/lazada-search", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ query: cleaned, page, pageSize: 14 }),
+    body: JSON.stringify({ query: cleaned, page, pageSize: LAZADA_SEARCH_PAGE_SIZE }),
     signal: AbortSignal.timeout(25_000),
   });
 

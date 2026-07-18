@@ -7,7 +7,7 @@ const LAST_SEARCH_TTL_MS = 24 * 60 * 60_000; // 24 hours
 const PAGE_CACHE_TTL_MS = 30 * 60_000; // 30 minutes
 
 export interface LazadaLastSearch {
-  version: 2;
+  version: 3;
   query: string;
   page: number;
   hasMore: boolean;
@@ -40,7 +40,7 @@ function writeJson(key: string, value: unknown) {
 
 export function loadLastLazadaSearch(): LazadaLastSearch | null {
   const data = readJson<LazadaLastSearch>(LAST_SEARCH_KEY);
-  if (data?.version !== 2 || !data.query || !Array.isArray(data.results)) return null;
+  if (data?.version !== 3 || !data.query || !Array.isArray(data.results)) return null;
   if (Date.now() - data.savedAt > LAST_SEARCH_TTL_MS) {
     localStorage.removeItem(LAST_SEARCH_KEY);
     return null;
@@ -56,7 +56,7 @@ export function saveLastLazadaSearch(
   if (!cleaned || page.results.length === 0) return;
 
   writeJson(LAST_SEARCH_KEY, {
-    version: 2,
+    version: 3,
     query: cleaned,
     page: page.page,
     hasMore: page.hasMore,
@@ -68,7 +68,7 @@ export function saveLastLazadaSearch(
 }
 
 function pageCacheKey(query: string, page: number): string {
-  return `${query.trim().toLowerCase()}::${page}::14::details-v2`;
+  return `${query.trim().toLowerCase()}::${page}::15::details-v3`;
 }
 
 export function loadPageCache(query: string, page: number): LazadaSearchPage | null {

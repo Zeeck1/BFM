@@ -17,6 +17,10 @@
 }
 
 @layer utilities {
+  .admin-input {
+    @apply w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-800 outline-none transition focus:border-indigo-300 focus:bg-white focus:ring-2 focus:ring-indigo-500/10;
+  }
+
   /* Subtle dot-grid hero background */
   .bg-hero-dots {
     background-color: #020617;

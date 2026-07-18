@@ -38,8 +38,10 @@ export const ORDER_STATUS_META: Record<
 > = {
   pending:          { label: "Pending Payment",     color: "text-yellow-600 bg-yellow-50" },
   paid:             { label: "Paid",                 color: "text-blue-600 bg-blue-50" },
+  processing:       { label: "Processing",           color: "text-sky-600 bg-sky-50" },
   purchasing:       { label: "Purchasing in TH",     color: "text-indigo-600 bg-indigo-50" },
   received_at_bkk:  { label: "At Bangkok Warehouse", color: "text-purple-600 bg-purple-50" },
+  warehouse_bkk:    { label: "Bangkok Warehouse",    color: "text-violet-600 bg-violet-50" },
   in_transit:       { label: "In Transit to MM",     color: "text-orange-600 bg-orange-50" },
   delivered:        { label: "Delivered",            color: "text-green-600 bg-green-50" },
 };
