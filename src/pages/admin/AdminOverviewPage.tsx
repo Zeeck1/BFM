@@ -2,6 +2,7 @@ import { Link } from "react-router-dom";
 import { ArrowRight, BarChart3, Heart, Link2, Package, Search, Users } from "lucide-react";
 import { useAdminData } from "../../contexts/AdminDataProvider";
 import { AdminErrorNotice, AdminPageHeader, dateLabel, ownerLabel } from "../../components/admin/AdminUi";
+import { AdminUserAvatar } from "../../components/admin/AdminUserAvatar";
 import { buildTopSearchChartItems, buildTopWishlistChartItems } from "../../lib/adminCharts";
 import { ORDER_STATUS_META } from "../../lib/utils";
 
@@ -73,11 +74,14 @@ export function AdminOverviewPage() {
                 to={`/adminteam/users/${user.id}`}
                 className="flex items-center justify-between gap-3 rounded-2xl bg-slate-50 px-3 py-3 transition hover:bg-indigo-50"
               >
-                <div className="min-w-0">
-                  <p className="truncate text-sm font-semibold text-slate-900">
-                    {user.full_name || user.username || "Unnamed user"}
-                  </p>
-                  <p className="truncate text-xs text-slate-500">{user.email || user.id}</p>
+                <div className="flex min-w-0 items-center gap-2.5">
+                  <AdminUserAvatar user={user} className="h-9 w-9" />
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-semibold text-slate-900">
+                      {user.full_name || user.username || "Unnamed user"}
+                    </p>
+                    <p className="truncate text-xs text-slate-500">{user.email || user.id}</p>
+                  </div>
                 </div>
                 <span className="shrink-0 rounded-lg bg-white px-2 py-1 text-[11px] font-semibold capitalize text-slate-600 ring-1 ring-slate-200">
                   {user.role}

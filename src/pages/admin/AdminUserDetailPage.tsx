@@ -9,6 +9,7 @@ import {
   dateLabel,
 } from "../../components/admin/AdminUi";
 import { AdminWishlistProductCard } from "../../components/admin/AdminWishlistProductCard";
+import { AdminUserAvatar } from "../../components/admin/AdminUserAvatar";
 import { ORDER_STATUS_META } from "../../lib/utils";
 
 export function AdminUserDetailPage() {
@@ -53,10 +54,13 @@ export function AdminUserDetailPage() {
         Back to users
       </Link>
 
-      <AdminPageHeader
-        title={user.full_name || user.username || "Unnamed user"}
-        description={`${user.email || user.id} · Joined ${dateLabel(user.created_at)} · Role: ${user.role}`}
-      />
+      <div className="mb-6 flex items-center gap-3">
+        <AdminUserAvatar user={user} className="h-14 w-14 text-base" />
+        <AdminPageHeader
+          title={user.full_name || user.username || "Unnamed user"}
+          description={`${user.email || user.id} · Joined ${dateLabel(user.created_at)} · Role: ${user.role}`}
+        />
+      </div>
       <AdminErrorNotice message={error} />
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">

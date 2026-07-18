@@ -161,6 +161,16 @@ export function ProfilePage() {
       return;
     }
 
+    const { error: profileUpdateError } = await supabase
+      .from("profiles")
+      .update({ full_name: trimmedName, avatar_url: nextAvatarUrl })
+      .eq("id", user.id);
+
+    if (profileUpdateError) {
+      setError(profileUpdateError.message);
+      return;
+    }
+
     // Keep existing shared list rows in sync with the new name and/or avatar.
     void syncOwnerProfileInSharedLists(user.id, trimmedName, nextAvatarUrl ?? null);
 

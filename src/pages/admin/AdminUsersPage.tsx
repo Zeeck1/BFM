@@ -11,6 +11,7 @@ import {
   dateLabel,
   filterRows,
 } from "../../components/admin/AdminUi";
+import { AdminUserAvatar } from "../../components/admin/AdminUserAvatar";
 import { updateAdminProfile } from "../../lib/admin";
 import { runAdminSave } from "../../lib/adminSave";
 
@@ -55,9 +56,12 @@ export function AdminUsersPage() {
             className="rounded-3xl border border-slate-200/80 bg-white p-5 shadow-sm"
           >
             <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
-              <div>
-                <p className="font-semibold text-slate-900">{item.full_name || item.username || "Unnamed user"}</p>
-                <p className="text-xs text-slate-500">{item.email || item.id}</p>
+              <div className="flex min-w-0 items-center gap-3">
+                <AdminUserAvatar user={item} />
+                <div className="min-w-0">
+                  <p className="truncate font-semibold text-slate-900">{item.full_name || item.username || "Unnamed user"}</p>
+                  <p className="truncate text-xs text-slate-500">{item.email || item.id}</p>
+                </div>
               </div>
               <span className="text-xs text-slate-400">{dateLabel(item.created_at)}</span>
             </div>

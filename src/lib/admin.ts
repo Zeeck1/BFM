@@ -8,6 +8,7 @@ export interface AdminProfile {
   email?: string | null;
   username?: string | null;
   full_name?: string | null;
+  avatar_url?: string | null;
   phone?: string | null;
   address?: string | null;
   role: "admin" | "user";
@@ -63,10 +64,10 @@ export async function isCurrentUserAdmin(userId: string): Promise<boolean> {
 }
 
 export async function loadAdminDashboard() {
-  const [profilesResult, savedLinksResult, sharedListsResult, ordersResult, searchEventsResult] = await Promise.all([
+  const [profilesWithAvatarResult, savedLinksResult, sharedListsResult, ordersResult, searchEventsResult] = await Promise.all([
     supabase
       .from("profiles")
-      .select("id,email,username,full_name,phone,address,role,created_at")
+      .select("id,email,username,full_name,avatar_url,phone,address,role,created_at")
       .order("created_at", { ascending: false })
       .range(0, PAGE_SIZE - 1),
     supabase
@@ -90,6 +91,16 @@ export async function loadAdminDashboard() {
       .order("created_at", { ascending: false })
       .range(0, PAGE_SIZE - 1),
   ]);
+
+  // Migration 020 adds avatar_url. Keep the Admin Dashboard usable for
+  // environments where that migration has not been applied yet.
+  const profilesResult = profilesWithAvatarResult.error?.code === "42703"
+    ? await supabase
+        .from("profiles")
+        .select("id,email,username,full_name,phone,address,role,created_at")
+        .order("created_at", { ascending: false })
+        .range(0, PAGE_SIZE - 1)
+    : profilesWithAvatarResult;
 
   const firstError =
     profilesResult.error || savedLinksResult.error || sharedListsResult.error || ordersResult.error || searchEventsResult.error;

@@ -176,6 +176,16 @@ export function ProfileSettingsModal({ open, user, onClose }: ProfileSettingsMod
       return;
     }
 
+    const { error: profileUpdateError } = await supabase
+      .from("profiles")
+      .update({ full_name: trimmedName, avatar_url: nextAvatarUrl })
+      .eq("id", currentUser.id);
+
+    if (profileUpdateError) {
+      setError(profileUpdateError.message);
+      return;
+    }
+
     setAvatarFile(null);
     setSaved(true);
     setTimeout(() => {
