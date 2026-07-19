@@ -46,6 +46,13 @@ export interface AdminSearchEvent {
   created_at: string;
 }
 
+export interface AdminExchangeRate {
+  id: number;
+  thb_to_mmk: number;
+  updated_at: string;
+  updated_by?: string | null;
+}
+
 function asError(error: { message?: string } | null, fallback: string): Error {
   return new Error(error?.message || fallback);
 }
@@ -142,4 +149,52 @@ export async function updateAdminOrder(
 export async function updateAdminSharedList(id: string, expires_at: string) {
   const { error } = await supabase.from("shared_lists").update({ expires_at }).eq("id", id);
   if (error) throw asError(error, "Could not update shared list.");
+}
+
+export async function loadAdminExchangeRate(): Promise<AdminExchangeRate | null> {
+  const { data, error } = await supabase
+    .from("exchange_rates")
+    .select("id,thb_to_mmk,updated_at,updated_by")
+    .order("id", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (error) throw asError(error, "Could not load the exchange rate.");
+  return data
+    ? {
+        ...data,
+        thb_to_mmk: Number(data.thb_to_mmk),
+      } as AdminExchangeRate
+    : null;
+}
+
+export async function saveAdminExchangeRate(rate: number): Promise<AdminExchangeRate> {
+  if (!Number.isFinite(rate) || rate <= 0 || rate > 1_000_000) {
+    throw new Error("Enter a valid rate between 0 and 1,000,000 MMK.");
+  }
+
+  const [{ data: userData, error: userError }, current] = await Promise.all([
+    supabase.auth.getUser(),
+    loadAdminExchangeRate(),
+  ]);
+  if (userError || !userData.user) throw asError(userError, "You must be signed in as an admin.");
+
+  const values = {
+    thb_to_mmk: rate,
+    updated_at: new Date().toISOString(),
+    updated_by: userData.user.id,
+  };
+
+  const query = current
+    ? supabase.from("exchange_rates").update(values).eq("id", current.id)
+    : supabase.from("exchange_rates").insert(values);
+  const { data, error } = await query
+    .select("id,thb_to_mmk,updated_at,updated_by")
+    .single();
+
+  if (error) throw asError(error, "Could not update the exchange rate.");
+  return {
+    ...data,
+    thb_to_mmk: Number(data.thb_to_mmk),
+  } as AdminExchangeRate;
 }

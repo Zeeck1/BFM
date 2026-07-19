@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import { ArrowRight, BarChart3, Heart, Link2, Package, Search, Users } from "lucide-react";
+import { ArrowRight, Banknote, BarChart3, Heart, Link2, Package, Search, Users } from "lucide-react";
 import { useAdminData } from "../../contexts/AdminDataProvider";
 import { AdminErrorNotice, AdminPageHeader, dateLabel, ownerLabel } from "../../components/admin/AdminUi";
 import { AdminUserAvatar } from "../../components/admin/AdminUserAvatar";
@@ -37,6 +37,15 @@ export function AdminOverviewPage() {
       <AdminPageHeader
         title="Overview"
         description="Snapshot of BuyForMe activity stored in Supabase."
+        action={
+          <Link
+            to="/adminteam/rate"
+            className="inline-flex items-center justify-center gap-2 rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-700"
+          >
+            <Banknote className="h-4 w-4" />
+            Adjust currency rate
+          </Link>
+        }
       />
       <AdminErrorNotice message={error} />
 

@@ -14,6 +14,7 @@ import { PrivacyPolicyPage } from "./pages/PrivacyPolicyPage";
 import { ProfilePage } from "./pages/ProfilePage";
 import { ProductDetailPage } from "./pages/ProductDetailPage";
 import { AdminChartsPage } from "./pages/admin/AdminChartsPage";
+import { AdminExchangeRatePage } from "./pages/admin/AdminExchangeRatePage";
 import { AdminOverviewPage } from "./pages/admin/AdminOverviewPage";
 import { AdminUsersPage } from "./pages/admin/AdminUsersPage";
 import { AdminUserDetailPage } from "./pages/admin/AdminUserDetailPage";
@@ -65,6 +66,7 @@ export default function App() {
         <Route path="adminteam" element={<AdminLayout user={user} onSignIn={openAuth} />}>
           <Route index element={<AdminOverviewPage />} />
           <Route path="charts" element={<AdminChartsPage />} />
+          <Route path="rate" element={<AdminExchangeRatePage />} />
           <Route path="users" element={<AdminUsersPage />} />
           <Route path="users/:userId" element={<AdminUserDetailPage />} />
           <Route path="wishlist" element={<AdminWishlistPage />} />

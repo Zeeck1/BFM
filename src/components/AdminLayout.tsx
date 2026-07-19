@@ -4,6 +4,7 @@ import type { User as SupabaseUser } from "@supabase/supabase-js";
 import {
   ArrowLeft,
   BarChart3,
+  Banknote,
   Heart,
   LayoutDashboard,
   Link2,
@@ -23,6 +24,7 @@ import { BrandLogo } from "./BrandLogo";
 const NAV = [
   { to: "/adminteam", end: true, label: "Overview", icon: LayoutDashboard },
   { to: "/adminteam/charts", end: false, label: "Charts", icon: BarChart3 },
+  { to: "/adminteam/rate", end: false, label: "Currency rate", icon: Banknote },
   { to: "/adminteam/users", end: false, label: "Users", icon: Users },
   { to: "/adminteam/wishlist", end: false, label: "Wishlist", icon: Heart },
   { to: "/adminteam/searches", end: false, label: "Searches", icon: Search },

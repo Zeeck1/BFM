@@ -10,6 +10,8 @@ let cached: number = FALLBACK;
 let fetchedAt: number = 0;
 let inFlight: Promise<number> | null = null;
 
+export const EXCHANGE_RATE_UPDATED_EVENT = "bfm:exchange-rate-updated";
+
 export async function getExchangeRate(): Promise<number> {
   const now = Date.now();
   if (now - fetchedAt < TTL_MS) return cached;
@@ -37,4 +39,10 @@ export async function getExchangeRate(): Promise<number> {
 
 export function getCachedRate(): number {
   return cached;
+}
+
+export function setCachedExchangeRate(rate: number): void {
+  cached = rate;
+  fetchedAt = Date.now();
+  window.dispatchEvent(new CustomEvent(EXCHANGE_RATE_UPDATED_EVENT, { detail: rate }));
 }

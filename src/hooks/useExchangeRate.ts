@@ -3,7 +3,11 @@
 // regardless of how many components call this hook.
 
 import { useEffect, useState } from "react";
-import { getCachedRate, getExchangeRate } from "../lib/exchangeRateCache";
+import {
+  EXCHANGE_RATE_UPDATED_EVENT,
+  getCachedRate,
+  getExchangeRate,
+} from "../lib/exchangeRateCache";
 
 interface ExchangeRateState {
   rate: number;
@@ -18,11 +22,18 @@ export function useExchangeRate(): ExchangeRateState {
 
   useEffect(() => {
     let cancelled = false;
+    function handleRateUpdate(event: Event) {
+      const rate = (event as CustomEvent<number>).detail;
+      if (Number.isFinite(rate)) setState({ rate, loading: false });
+    }
+
+    window.addEventListener(EXCHANGE_RATE_UPDATED_EVENT, handleRateUpdate);
     getExchangeRate().then((rate) => {
       if (!cancelled) setState({ rate, loading: false });
     });
     return () => {
       cancelled = true;
+      window.removeEventListener(EXCHANGE_RATE_UPDATED_EVENT, handleRateUpdate);
     };
   }, []);
 

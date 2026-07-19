@@ -26,8 +26,12 @@ export async function searchLazadaProducts(
   if (!options?.bypassCache) {
     const cached = loadPageCache(cleaned, page);
     if (cached && cached.results.length > 0) {
-      saveLastLazadaSearch(cleaned, cached);
-      return cached;
+      const normalized = {
+        ...cached,
+        results: cached.results.slice(0, LAZADA_SEARCH_PAGE_SIZE),
+      };
+      saveLastLazadaSearch(cleaned, normalized);
+      return normalized;
     }
   }
 
@@ -45,7 +49,7 @@ export async function searchLazadaProducts(
   }
 
   const result: LazadaSearchPage = {
-    results: data.results ?? [],
+    results: (data.results ?? []).slice(0, LAZADA_SEARCH_PAGE_SIZE),
     page: data.page ?? page,
     hasMore: Boolean(data.has_more),
   };

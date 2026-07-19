@@ -25,7 +25,7 @@ import { PlatformShowcase } from "../components/PlatformShowcase";
 import { ProductPreviewCard } from "../components/ProductPreviewCard";
 import { useExchangeRate } from "../hooks/useExchangeRate";
 import { useSavedItems } from "../contexts/SavedItemsProvider";
-import { searchLazadaProducts } from "../lib/lazadaSearch";
+import { LAZADA_SEARCH_PAGE_SIZE, searchLazadaProducts } from "../lib/lazadaSearch";
 import { loadLastLazadaSearch } from "../lib/lazadaSearchCache";
 import { fetchPreview } from "../lib/preview";
 import { recordSearchHistory } from "../lib/searchHistory";
@@ -213,7 +213,7 @@ export function LinkSearchPage() {
     const last = loadLastLazadaSearch();
     if (!last || last.results.length === 0) return;
     setUrl(last.query);
-    setSearchResults(last.results);
+    setSearchResults(last.results.slice(0, LAZADA_SEARCH_PAGE_SIZE));
     setSearchPage(last.page);
     setSearchHasMore(last.hasMore);
     setSearchState("done");
