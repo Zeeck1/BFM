@@ -25,6 +25,11 @@ import { PlatformShowcase } from "../components/PlatformShowcase";
 import { ProductPreviewCard } from "../components/ProductPreviewCard";
 import { useExchangeRate } from "../hooks/useExchangeRate";
 import { useSavedItems } from "../contexts/SavedItemsProvider";
+import {
+  clearGuestFreeSearchUsed,
+  hasGuestUsedFreeSearch,
+  markGuestFreeSearchUsed,
+} from "../lib/guestSearchLimit";
 import { LAZADA_SEARCH_PAGE_SIZE, searchLazadaProducts } from "../lib/lazadaSearch";
 import { loadLastLazadaSearch } from "../lib/lazadaSearchCache";
 import { fetchPreview } from "../lib/preview";
@@ -199,11 +204,21 @@ export function LinkSearchPage() {
   const [searchHasMore, setSearchHasMore] = useState(false);
   const [searchError, setSearchError] = useState("");
   const [savedResultUrls, setSavedResultUrls] = useState<Set<string>>(new Set());
+  const [guestSearchLocked, setGuestSearchLocked] = useState(() => hasGuestUsedFreeSearch());
 
   const { rate } = useExchangeRate();
   const { saving, save } = useSavedItems();
   const inputRef = useRef<HTMLInputElement>(null);
   const resultsRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (user) {
+      clearGuestFreeSearchUsed();
+      setGuestSearchLocked(false);
+      return;
+    }
+    setGuestSearchLocked(hasGuestUsedFreeSearch());
+  }, [user]);
 
   const hasActivity =
     fetchState !== "idle" || !!preview || searchState !== "idle" || searchResults.length > 0;
@@ -273,6 +288,15 @@ export function LinkSearchPage() {
   }
 
   async function runLazadaSearch(query: string, page = 1) {
+    // Guests get one free keyword search. Extra searches (and pagination) require sign-in.
+    if (!user && (page > 1 || guestSearchLocked || hasGuestUsedFreeSearch())) {
+      setGuestSearchLocked(true);
+      setSearchError("Sign in to search again. Guests can search Lazada once for free.");
+      setSearchState("error");
+      onSignIn();
+      return;
+    }
+
     setPreview(null);
     setFetchState("idle");
     setFetchError("");
@@ -292,6 +316,10 @@ export function LinkSearchPage() {
       setSearchPage(response.page);
       setSearchHasMore(response.hasMore);
       setSearchState("done");
+      if (!user && page === 1) {
+        markGuestFreeSearchUsed();
+        setGuestSearchLocked(true);
+      }
       if (user && page === 1) {
         void recordSearchHistory(user.id, query);
       }
@@ -308,6 +336,13 @@ export function LinkSearchPage() {
     if (!trimmed) return;
 
     if (!isFetchableUrl(trimmed)) {
+      if (!user && (guestSearchLocked || hasGuestUsedFreeSearch())) {
+        setGuestSearchLocked(true);
+        setSearchError("Sign in to search again. Guests can search Lazada once for free.");
+        setSearchState("error");
+        onSignIn();
+        return;
+      }
       await runLazadaSearch(trimmed, 1);
       return;
     }
@@ -404,6 +439,13 @@ export function LinkSearchPage() {
             Search Lazada products or paste any product URL — we fetch the details so you can save
             it to your wishlist.
           </p>
+          {!user && (
+            <p className="mx-auto mt-2 max-w-lg text-xs text-slate-500">
+              {guestSearchLocked
+                ? "Free guest search used. Sign in to keep searching Lazada."
+                : "Guests get 1 free Lazada search. Sign in for unlimited searches."}
+            </p>
+          )}
 
           <form
             onSubmit={handleSubmit}
@@ -568,10 +610,41 @@ export function LinkSearchPage() {
             {searchState === "error" && (
               <div className="rounded-2xl border border-red-100 bg-red-50 p-5">
                 <p className="text-sm font-semibold text-red-700">{searchError}</p>
-                <p className="mt-1 text-xs text-red-400">
-                  Lazada search could not be loaded right now. Please try another keyword or paste a
-                  direct product link.
+                {!user && guestSearchLocked ? (
+                  <div className="mt-3">
+                    <p className="text-xs text-red-400">
+                      Create a free account to unlock unlimited Lazada searches and save products.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={onSignIn}
+                      className="mt-3 rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-700"
+                    >
+                      Sign in to continue
+                    </button>
+                  </div>
+                ) : (
+                  <p className="mt-1 text-xs text-red-400">
+                    Lazada search could not be loaded right now. Please try another keyword or paste a
+                    direct product link.
+                  </p>
+                )}
+              </div>
+            )}
+
+            {!user && guestSearchLocked && searchState === "done" && searchResults.length > 0 && (
+              <div className="rounded-2xl border border-indigo-100 bg-indigo-50 p-4 sm:p-5">
+                <p className="text-sm font-semibold text-indigo-900">Free guest search used</p>
+                <p className="mt-1 text-xs text-indigo-700">
+                  Sign in to search again, open more pages, and save products to your wishlist.
                 </p>
+                <button
+                  type="button"
+                  onClick={onSignIn}
+                  className="mt-3 rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-700"
+                >
+                  Sign in to search more
+                </button>
               </div>
             )}
 
@@ -628,7 +701,13 @@ export function LinkSearchPage() {
                       </span>
                       <button
                         type="button"
-                        onClick={() => handleSearchPage(searchPage + 1)}
+                        onClick={() => {
+                          if (!user && guestSearchLocked) {
+                            onSignIn();
+                            return;
+                          }
+                          void handleSearchPage(searchPage + 1);
+                        }}
                         disabled={!searchHasMore}
                         className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50 disabled:opacity-40"
                       >
