@@ -20,4 +20,15 @@ export const env = {
   /** RapidAPI host for Lazada search */
   rapidApiLazadaHost:
     process.env.RAPIDAPI_LAZADA_HOST?.trim() || "lazada-api.p.rapidapi.com",
+  /**
+   * RapidAPI key for Shopee product preview.
+   * Falls back to RAPIDAPI_KEY when a dedicated Shopee key is not set.
+   */
+  rapidApiShopeeKey:
+    process.env.RAPIDAPI_SHOPEE_KEY?.trim() ||
+    process.env.RAPIDAPI_KEY?.trim() ||
+    "",
+  /** RapidAPI host for Shopee product preview */
+  rapidApiShopeeHost:
+    process.env.RAPIDAPI_SHOPEE_HOST?.trim() || "shopee-api2.p.rapidapi.com",
 };
