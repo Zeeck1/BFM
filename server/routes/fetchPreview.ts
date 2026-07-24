@@ -7,6 +7,7 @@ import {
   isLazadaProductUrl,
   searchLazadaProducts,
 } from "../lazadaProduct.js";
+import { searchSheinProducts } from "../sheinProduct.js";
 
 export const fetchPreviewRouter = Router();
 
@@ -271,6 +272,47 @@ fetchPreviewRouter.post("/lazada-search", async (req, res) => {
     res.status(503).json({
       error:
         "Lazada search is temporarily unavailable from our server. Please try again later or paste a product link directly.",
+      blocked: true,
+    });
+    return;
+  }
+
+  res.json({ results, page, has_more });
+});
+
+fetchPreviewRouter.post("/shein-search", async (req, res) => {
+  const body = req.body as Record<string, unknown>;
+  const raw: unknown = body?.query;
+  const query = typeof raw === "string" ? raw.trim() : "";
+  const rawPage = body?.page;
+  const page =
+    typeof rawPage === "number"
+      ? rawPage
+      : typeof rawPage === "string"
+        ? Number.parseInt(rawPage, 10)
+        : 1;
+
+  if (!query) {
+    res.status(400).json({ error: "query is required" });
+    return;
+  }
+
+  if (query.length > 120) {
+    res.status(400).json({ error: "Search query is too long" });
+    return;
+  }
+
+  if (!Number.isFinite(page) || page < 1 || page > 100) {
+    res.status(400).json({ error: "Invalid page number" });
+    return;
+  }
+
+  const { results, has_more, blocked } = await searchSheinProducts(query, page, 15);
+
+  if (results.length === 0 && blocked) {
+    res.status(503).json({
+      error:
+        "SHEIN search is blocked or rate-limited right now (403/empty response). Wait a minute and try again, or paste a SHEIN product link.",
       blocked: true,
     });
     return;

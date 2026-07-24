@@ -15,9 +15,18 @@ export const env = {
    *   https://api.scrapingant.com/v2/general?x-api-key=KEY&url={url}
    */
   lazadaProxyUrl: process.env.LAZADA_PROXY_URL?.trim() ?? "",
-  /** RapidAPI key for Lazada product search (TMAPI Lazada API) */
+  /** RapidAPI key for Lazada / SHEIN product search */
   rapidApiKey: process.env.RAPIDAPI_KEY?.trim() ?? "",
   /** RapidAPI host for Lazada search */
   rapidApiLazadaHost:
     process.env.RAPIDAPI_LAZADA_HOST?.trim() || "lazada-api.p.rapidapi.com",
+  /** RapidAPI host for SHEIN search (things4u Shein Scraper) */
+  rapidApiSheinHost:
+    process.env.RAPIDAPI_SHEIN_HOST?.trim() || "shein-scraper.p.rapidapi.com",
+  /** SHEIN market country code (TH for BuyForMe) */
+  rapidApiSheinCountry: process.env.RAPIDAPI_SHEIN_COUNTRY?.trim() || "TH",
+  /** SHEIN language */
+  rapidApiSheinLanguage: process.env.RAPIDAPI_SHEIN_LANGUAGE?.trim() || "en",
+  /** SHEIN currency (THB so prices map cleanly to MMK) */
+  rapidApiSheinCurrency: process.env.RAPIDAPI_SHEIN_CURRENCY?.trim() || "THB",
 };

@@ -13,13 +13,18 @@ import {
   ChevronLeft,
   ChevronRight,
   ExternalLink,
+  Heart,
+  Link2,
   Loader2,
+  MessageCircle,
   Search,
   Sparkles,
   X,
 } from "lucide-react";
 import { AdSenseUnit } from "../components/AdSenseUnit";
 import type { AppOutletContext } from "../components/AppLayout";
+import { BrandLogo } from "../components/BrandLogo";
+import { GuestSearchLimitModal } from "../components/GuestSearchLimitModal";
 import { ImageLightbox } from "../components/ImageLightbox";
 import { PlatformShowcase } from "../components/PlatformShowcase";
 import { ProductPreviewCard } from "../components/ProductPreviewCard";
@@ -32,6 +37,8 @@ import {
 } from "../lib/guestSearchLimit";
 import { LAZADA_SEARCH_PAGE_SIZE, searchLazadaProducts } from "../lib/lazadaSearch";
 import { loadLastLazadaSearch } from "../lib/lazadaSearchCache";
+import { SHEIN_SEARCH_PAGE_SIZE, searchSheinProducts } from "../lib/sheinSearch";
+import { loadLastSheinSearch } from "../lib/sheinSearchCache";
 import { fetchPreview } from "../lib/preview";
 import { recordSearchHistory } from "../lib/searchHistory";
 import { isFetchableUrl } from "../lib/utils";
@@ -39,10 +46,35 @@ import { formatMMK, formatSoldCount, formatTHB } from "../lib/utils";
 import type { ProductPreview, ProductSearchResult } from "../types";
 
 type FetchState = "idle" | "loading" | "done" | "error";
+type SearchPlatform = "lazada" | "shein";
 const ADSENSE_SEARCH_SLOT =
   (import.meta.env.VITE_ADSENSE_SEARCH_SLOT as string | undefined)?.trim() ?? "";
 
-interface LazadaResultCardProps {
+const SEARCH_PLATFORM_TABS: {
+  id: SearchPlatform;
+  label: string;
+  hint: string;
+  activeClass: string;
+}[] = [
+  {
+    id: "lazada",
+    label: "Lazada",
+    hint: "Marketplace",
+    activeClass: "bg-white text-[#0F146D] shadow-md shadow-black/20",
+  },
+  {
+    id: "shein",
+    label: "SHEIN",
+    hint: "Fashion store",
+    activeClass: "bg-white text-slate-950 shadow-md shadow-black/20",
+  },
+];
+
+function platformDisplayName(platform: SearchPlatform): string {
+  return platform === "shein" ? "SHEIN" : "Lazada";
+}
+
+interface SearchResultCardProps {
   result: ProductSearchResult;
   rate: number;
   onSave: () => void;
@@ -52,7 +84,7 @@ interface LazadaResultCardProps {
   onSignIn: () => void;
 }
 
-function LazadaResultCard({
+function SearchResultCard({
   result,
   rate,
   onSave,
@@ -60,10 +92,12 @@ function LazadaResultCard({
   saved,
   loggedIn,
   onSignIn,
-}: LazadaResultCardProps) {
+}: SearchResultCardProps) {
   const [imgError, setImgError] = useState(false);
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const hasImage = Boolean(result.image_url && !imgError);
+  const siteLabel = result.site_name || "Product";
+  const isShein = siteLabel.toUpperCase() === "SHEIN";
 
   const hasShopName = Boolean(result.shop_name?.trim());
   const hasSoldCount = result.sold_count != null && result.sold_count > 0;
@@ -82,15 +116,19 @@ function LazadaResultCard({
           <span className="absolute inset-0 flex items-center justify-center p-2.5 sm:p-3">
             <img
               src={result.image_url}
-              alt={result.title ?? "Lazada product"}
+              alt={result.title ?? `${siteLabel} product`}
               className="h-full w-full object-cover object-center transition-transform duration-200 group-hover:scale-[1.03]"
               onError={() => setImgError(true)}
             />
           </span>
         ) : (
           <span className="absolute inset-0 flex items-center justify-center">
-            <div className="flex h-20 w-20 items-center justify-center rounded-2xl bg-indigo-50 text-sm font-bold text-indigo-600 sm:h-24 sm:w-24">
-              Lazada
+            <div
+              className={`flex h-20 w-20 items-center justify-center rounded-2xl text-sm font-bold sm:h-24 sm:w-24 ${
+                isShein ? "bg-black text-white" : "bg-indigo-50 text-indigo-600"
+              }`}
+            >
+              {siteLabel}
             </div>
           </span>
         )}
@@ -99,8 +137,12 @@ function LazadaResultCard({
       <div className="flex min-h-0 flex-1 flex-col border-t border-slate-100 p-3 sm:p-4">
         <div className="flex min-h-0 flex-1 flex-col gap-1.5">
           <div className="h-5 shrink-0">
-            <span className="inline-block rounded-md bg-orange-50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-orange-600">
-              Lazada
+            <span
+              className={`inline-block rounded-md px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider ${
+                isShein ? "bg-black text-white" : "bg-orange-50 text-orange-600"
+              }`}
+            >
+              {siteLabel}
             </span>
           </div>
           <Link
@@ -205,6 +247,8 @@ export function LinkSearchPage() {
   const [searchError, setSearchError] = useState("");
   const [savedResultUrls, setSavedResultUrls] = useState<Set<string>>(new Set());
   const [guestSearchLocked, setGuestSearchLocked] = useState(() => hasGuestUsedFreeSearch());
+  const [guestLimitModalOpen, setGuestLimitModalOpen] = useState(false);
+  const [searchPlatform, setSearchPlatform] = useState<SearchPlatform>("lazada");
 
   const { rate } = useExchangeRate();
   const { saving, save } = useSavedItems();
@@ -215,6 +259,7 @@ export function LinkSearchPage() {
     if (user) {
       clearGuestFreeSearchUsed();
       setGuestSearchLocked(false);
+      setGuestLimitModalOpen(false);
       return;
     }
     setGuestSearchLocked(hasGuestUsedFreeSearch());
@@ -223,19 +268,69 @@ export function LinkSearchPage() {
   const hasActivity =
     fetchState !== "idle" || !!preview || searchState !== "idle" || searchResults.length > 0;
 
-  // Restore last Lazada search instantly when returning to the page
-  useEffect(() => {
-    const last = loadLastLazadaSearch();
-    if (!last || last.results.length === 0) return;
+  function applyCachedSearch(
+    platform: SearchPlatform,
+    last: {
+      query: string;
+      page: number;
+      hasMore: boolean;
+      results: ProductSearchResult[];
+    },
+  ) {
+    const pageSize = platform === "shein" ? SHEIN_SEARCH_PAGE_SIZE : LAZADA_SEARCH_PAGE_SIZE;
+    setSearchPlatform(platform);
     setUrl(last.query);
-    setSearchResults(last.results.slice(0, LAZADA_SEARCH_PAGE_SIZE));
+    setSearchResults(last.results.slice(0, pageSize));
     setSearchPage(last.page);
     setSearchHasMore(last.hasMore);
     setSearchState("done");
     setSearchError("");
     setFetchState("idle");
     setPreview(null);
+    setFetchError("");
+  }
+
+  // Restore the most recent Lazada/SHEIN search when returning to the page
+  useEffect(() => {
+    const lazada = loadLastLazadaSearch();
+    const shein = loadLastSheinSearch();
+    const candidates = [
+      lazada && lazada.results.length > 0
+        ? { platform: "lazada" as const, savedAt: lazada.savedAt, data: lazada }
+        : null,
+      shein && shein.results.length > 0
+        ? { platform: "shein" as const, savedAt: shein.savedAt, data: shein }
+        : null,
+    ].filter((item): item is NonNullable<typeof item> => item !== null);
+
+    if (candidates.length === 0) return;
+    candidates.sort((a, b) => b.savedAt - a.savedAt);
+    const newest = candidates[0];
+    applyCachedSearch(newest.platform, newest.data);
   }, []);
+
+  function switchSearchPlatform(platform: SearchPlatform) {
+    if (platform === searchPlatform) return;
+    setSearchPlatform(platform);
+    setSearchError("");
+    setFetchState("idle");
+    setPreview(null);
+    setFetchError("");
+
+    const cached =
+      platform === "shein" ? loadLastSheinSearch() : loadLastLazadaSearch();
+    if (cached && cached.results.length > 0) {
+      applyCachedSearch(platform, cached);
+      return;
+    }
+
+    // Keep the typed query, but clear stale results from the other platform
+    setSearchResults([]);
+    setSearchPage(1);
+    setSearchHasMore(false);
+    setSearchState("idle");
+    if (isFetchableUrl(url.trim())) setUrl("");
+  }
 
   useEffect(() => {
     const trimmed = url.trim();
@@ -287,13 +382,14 @@ export function LinkSearchPage() {
     if (pasted.startsWith("http")) setTimeout(() => setUrl(pasted), 0);
   }
 
-  async function runLazadaSearch(query: string, page = 1) {
+  async function runProductSearch(query: string, page = 1, platform: SearchPlatform = searchPlatform) {
+    const platformLabel = platformDisplayName(platform);
     // Guests get one free keyword search. Extra searches (and pagination) require sign-in.
     if (!user && (page > 1 || guestSearchLocked || hasGuestUsedFreeSearch())) {
       setGuestSearchLocked(true);
-      setSearchError("Sign in to search again. Guests can search Lazada once for free.");
-      setSearchState("error");
-      onSignIn();
+      setGuestLimitModalOpen(true);
+      setSearchError("");
+      setSearchState(searchResults.length > 0 ? "done" : "idle");
       return;
     }
 
@@ -303,6 +399,7 @@ export function LinkSearchPage() {
     setPreviewSaved(false);
     setSearchError("");
     setSearchPage(page);
+    setSearchPlatform(platform);
     if (page === 1) {
       setSavedResultUrls(new Set());
     }
@@ -311,7 +408,11 @@ export function LinkSearchPage() {
     setSearchState("loading");
 
     try {
-      const response = await searchLazadaProducts(query, page);
+      const response =
+        platform === "shein"
+          ? await searchSheinProducts(query, page)
+          : await searchLazadaProducts(query, page);
+
       setSearchResults(response.results);
       setSearchPage(response.page);
       setSearchHasMore(response.hasMore);
@@ -319,12 +420,13 @@ export function LinkSearchPage() {
       if (!user && page === 1) {
         markGuestFreeSearchUsed();
         setGuestSearchLocked(true);
+        setGuestLimitModalOpen(true);
       }
       if (user && page === 1) {
-        void recordSearchHistory(user.id, query);
+        void recordSearchHistory(user.id, `${platformLabel}: ${query}`);
       }
     } catch (e) {
-      setSearchError(e instanceof Error ? e.message : "Failed to search Lazada products");
+      setSearchError(e instanceof Error ? e.message : `Failed to search ${platformLabel} products`);
       setSearchHasMore(false);
       setSearchState("error");
     }
@@ -338,12 +440,10 @@ export function LinkSearchPage() {
     if (!isFetchableUrl(trimmed)) {
       if (!user && (guestSearchLocked || hasGuestUsedFreeSearch())) {
         setGuestSearchLocked(true);
-        setSearchError("Sign in to search again. Guests can search Lazada once for free.");
-        setSearchState("error");
-        onSignIn();
+        setGuestLimitModalOpen(true);
         return;
       }
-      await runLazadaSearch(trimmed, 1);
+      await runProductSearch(trimmed, 1, searchPlatform);
       return;
     }
 
@@ -384,7 +484,7 @@ export function LinkSearchPage() {
   async function handleSearchPage(nextPage: number) {
     if (searchState === "loading") return;
     if (!trimmedInput || isFetchableUrl(trimmedInput)) return;
-    await runLazadaSearch(trimmedInput, nextPage);
+    await runProductSearch(trimmedInput, nextPage, searchPlatform);
   }
 
   async function handleSavePreview() {
@@ -414,7 +514,8 @@ export function LinkSearchPage() {
 
   const trimmedInput = url.trim();
   const isSearching = fetchState === "loading" || searchState === "loading";
-  const submitLabel = trimmedInput && !isFetchableUrl(trimmedInput) ? "Search Lazada" : "Preview";
+  const platformLabel = platformDisplayName(searchPlatform);
+  const submitLabel = trimmedInput && !isFetchableUrl(trimmedInput) ? `Search ${platformLabel}` : "Preview";
 
   return (
     <div className="min-h-[calc(100vh-3.5rem)]">
@@ -436,20 +537,55 @@ export function LinkSearchPage() {
             </span>
           </h1>
           <p className="mx-auto mt-2 max-w-md text-sm text-slate-400 sm:mt-3 sm:max-w-none sm:text-base">
-            Search Lazada products or paste any product URL — we fetch the details so you can save
-            it to your wishlist.
+            Search Lazada or SHEIN products, or paste any product URL — we fetch the details so you can
+            save it to your wishlist.
           </p>
           {!user && (
             <p className="mx-auto mt-2 max-w-lg text-xs text-slate-500">
               {guestSearchLocked
-                ? "Free guest search used. Sign in to keep searching Lazada."
-                : "Guests get 1 free Lazada search. Sign in for unlimited searches."}
+                ? "Free guest search used. Sign in to keep searching."
+                : "Guests get 1 free product search. Sign in for unlimited searches."}
             </p>
           )}
 
+          <div
+            role="tablist"
+            aria-label="Search platform"
+            className="mx-auto mt-5 grid w-full max-w-sm grid-cols-2 gap-1 rounded-2xl border border-white/10 bg-black/25 p-1 backdrop-blur-sm"
+          >
+            {SEARCH_PLATFORM_TABS.map((tab) => {
+              const active = searchPlatform === tab.id;
+              return (
+                <button
+                  key={tab.id}
+                  type="button"
+                  role="tab"
+                  aria-selected={active}
+                  onClick={() => switchSearchPlatform(tab.id)}
+                  className={`relative rounded-xl px-2 py-2.5 text-center transition duration-200 sm:px-3 ${
+                    active
+                      ? tab.activeClass
+                      : "text-slate-400 hover:bg-white/5 hover:text-slate-100"
+                  }`}
+                >
+                  <span className="block text-xs font-bold tracking-wide sm:text-sm">
+                    {tab.label}
+                  </span>
+                  <span
+                    className={`mt-0.5 block text-[10px] font-medium ${
+                      active ? "opacity-70" : "opacity-50"
+                    }`}
+                  >
+                    {tab.hint}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+
           <form
             onSubmit={handleSubmit}
-            className="mt-6 flex w-full min-w-0 flex-col gap-2 sm:mt-8 lg:flex-row lg:overflow-hidden lg:rounded-2xl lg:bg-white lg:shadow-2xl lg:shadow-black/30 lg:ring-1 lg:ring-white/10"
+            className="mt-4 flex w-full min-w-0 flex-col gap-2 sm:mt-5 lg:flex-row lg:overflow-hidden lg:rounded-2xl lg:bg-white lg:shadow-2xl lg:shadow-black/30 lg:ring-1 lg:ring-white/10"
           >
             <div className="relative flex min-w-0 flex-1 items-center overflow-hidden rounded-2xl bg-white shadow-xl shadow-black/20 ring-1 ring-white/10 lg:rounded-none lg:shadow-none lg:ring-0">
               <svg
@@ -469,7 +605,7 @@ export function LinkSearchPage() {
                 value={url}
                 onChange={(e) => setUrl(e.target.value)}
                 onPaste={handlePaste}
-                placeholder="Search Lazada or paste a product link..."
+                placeholder={`Search ${platformLabel} or paste a product link...`}
                 className="w-full min-w-0 bg-transparent py-3.5 pl-10 pr-10 text-sm text-slate-800 placeholder-slate-400 outline-none sm:py-4 sm:pl-11"
               />
               {url && (
@@ -491,7 +627,7 @@ export function LinkSearchPage() {
                 <Loader2 className="h-4 w-4 animate-spin" />
               ) : (
                 <>
-                  {submitLabel === "Search Lazada" ? (
+                  {submitLabel.startsWith("Search") ? (
                     <Search className="h-4 w-4" />
                   ) : (
                     <ArrowRight className="h-4 w-4" />
@@ -511,33 +647,81 @@ export function LinkSearchPage() {
         <div ref={resultsRef} className="mx-auto max-w-5xl scroll-mt-16">
         {!hasActivity && (
           <div className="space-y-4">
-            <div className="rounded-2xl border border-slate-200 bg-white p-6 sm:p-8">
-              <h2 className="text-base font-bold text-slate-900">About Buy For Me</h2>
-              <p className="mt-2 text-sm leading-relaxed text-slate-600">
-                Buy For Me (BFM) helps Myanmar customers shop from Thailand. Search Lazada products,
-                paste product links, save items to your wishlist, share lists with QR codes, and
-                request purchases through Messenger. Sign in with Google only to identify your
-                account and save your shopping list.
-              </p>
-              <div className="mt-4 flex flex-wrap items-center gap-3 text-sm font-semibold">
-                <Link to="/our-service" className="text-indigo-600 hover:text-indigo-700">
-                  Our Service
-                </Link>
-                <span className="text-slate-300">·</span>
-                <Link to="/privacy" className="text-indigo-600 hover:text-indigo-700">
-                  Privacy Policy
-                </Link>
-                <span className="text-slate-300">·</span>
-                <Link to="/terms" className="text-indigo-600 hover:text-indigo-700">
-                  Terms of Service
-                </Link>
+            <section className="relative overflow-hidden rounded-[1.75rem] border border-slate-200/80 bg-white shadow-sm shadow-slate-200/50">
+              <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,_rgba(99,102,241,0.12),_transparent_55%),radial-gradient(ellipse_at_bottom_left,_rgba(14,165,233,0.08),_transparent_50%)]" />
+              <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-indigo-300/60 to-transparent" />
+
+              <div className="relative px-5 py-7 sm:px-8 sm:py-9">
+                <div className="flex flex-col gap-5 sm:flex-row sm:items-start sm:gap-7">
+                  <BrandLogo className="h-16 w-16 rounded-2xl shadow-lg shadow-slate-900/10 sm:h-[4.5rem] sm:w-[4.5rem]" />
+                  <div className="min-w-0 flex-1">
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-indigo-600">
+                      About
+                    </p>
+                    <h2 className="mt-1 text-2xl font-extrabold tracking-tight text-slate-950 sm:text-3xl">
+                      Buy For Me
+                    </h2>
+                    <p className="mt-2 max-w-xl text-sm leading-relaxed text-slate-600 sm:text-[15px]">
+                      Myanmar customers shop from Thailand with confidence — search products, save
+                      favourites, and request purchases through Messenger.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="mt-7 grid gap-3 sm:grid-cols-3">
+                  {[
+                    {
+                      icon: Search,
+                      title: "Search & paste",
+                      text: "Find Lazada or SHEIN items, or paste any product link.",
+                    },
+                    {
+                      icon: Heart,
+                      title: "Save wishlist",
+                      text: "Keep favourites and share lists with QR codes.",
+                    },
+                    {
+                      icon: MessageCircle,
+                      title: "Order easily",
+                      text: "Request buys through Messenger in one tap.",
+                    },
+                  ].map(({ icon: Icon, title, text }) => (
+                    <div
+                      key={title}
+                      className="rounded-2xl border border-slate-200/70 bg-white/70 px-4 py-4 backdrop-blur-sm"
+                    >
+                      <span className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-slate-900 text-white">
+                        <Icon className="h-4 w-4" />
+                      </span>
+                      <p className="mt-3 text-sm font-bold text-slate-900">{title}</p>
+                      <p className="mt-1 text-xs leading-relaxed text-slate-500">{text}</p>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="mt-6 flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-slate-100 pt-5 text-sm font-semibold">
+                  <Link
+                    to="/our-service"
+                    className="inline-flex items-center gap-1.5 text-slate-800 transition hover:text-indigo-600"
+                  >
+                    <Link2 className="h-3.5 w-3.5" />
+                    Our Service
+                  </Link>
+                  <Link to="/privacy" className="text-slate-500 transition hover:text-indigo-600">
+                    Privacy Policy
+                  </Link>
+                  <Link to="/terms" className="text-slate-500 transition hover:text-indigo-600">
+                    Terms of Service
+                  </Link>
+                </div>
               </div>
-            </div>
-            <div className="rounded-2xl border border-dashed border-slate-200 bg-white p-8 text-center">
+            </section>
+
+            <div className="rounded-2xl border border-dashed border-slate-200 bg-white/80 p-8 text-center">
               <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-xl bg-slate-100">
                 <Search className="h-6 w-6 text-slate-400" />
               </div>
-              <p className="mt-3 text-sm font-semibold text-slate-700">Search Lazada products</p>
+              <p className="mt-3 text-sm font-semibold text-slate-700">Search {platformLabel} products</p>
               <p className="mt-1 text-sm text-slate-400">
                 Type a product name or paste a product URL above.
               </p>
@@ -561,8 +745,12 @@ export function LinkSearchPage() {
               <div className="flex items-center gap-4 rounded-2xl border border-slate-200/80 bg-white p-5 shadow-lg shadow-slate-200/60">
                 <Loader2 className="h-5 w-5 shrink-0 animate-spin text-indigo-500" />
                 <div className="flex-1 space-y-2">
-                  <p className="text-sm font-semibold text-slate-700">Searching Lazada products...</p>
-                  <p className="text-xs text-slate-400">Usually 1–3 seconds.</p>
+                  <p className="text-sm font-semibold text-slate-700">Searching {platformLabel} products...</p>
+                  <p className="text-xs text-slate-400">
+                    {searchPlatform === "shein"
+                      ? "SHEIN can take 20–60 seconds. Please wait…"
+                      : "Usually 1–3 seconds."}
+                  </p>
                 </div>
               </div>
             )}
@@ -610,41 +798,10 @@ export function LinkSearchPage() {
             {searchState === "error" && (
               <div className="rounded-2xl border border-red-100 bg-red-50 p-5">
                 <p className="text-sm font-semibold text-red-700">{searchError}</p>
-                {!user && guestSearchLocked ? (
-                  <div className="mt-3">
-                    <p className="text-xs text-red-400">
-                      Create a free account to unlock unlimited Lazada searches and save products.
-                    </p>
-                    <button
-                      type="button"
-                      onClick={onSignIn}
-                      className="mt-3 rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-700"
-                    >
-                      Sign in to continue
-                    </button>
-                  </div>
-                ) : (
-                  <p className="mt-1 text-xs text-red-400">
-                    Lazada search could not be loaded right now. Please try another keyword or paste a
-                    direct product link.
-                  </p>
-                )}
-              </div>
-            )}
-
-            {!user && guestSearchLocked && searchState === "done" && searchResults.length > 0 && (
-              <div className="rounded-2xl border border-indigo-100 bg-indigo-50 p-4 sm:p-5">
-                <p className="text-sm font-semibold text-indigo-900">Free guest search used</p>
-                <p className="mt-1 text-xs text-indigo-700">
-                  Sign in to search again, open more pages, and save products to your wishlist.
+                <p className="mt-1 text-xs text-red-400">
+                  Search could not be loaded right now. Please try another keyword or paste a
+                  direct product link.
                 </p>
-                <button
-                  type="button"
-                  onClick={onSignIn}
-                  className="mt-3 rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-700"
-                >
-                  Sign in to search more
-                </button>
               </div>
             )}
 
@@ -652,7 +809,7 @@ export function LinkSearchPage() {
               <div className="space-y-4">
                 <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
                   <div>
-                    <p className="text-sm font-bold text-slate-900">Lazada products</p>
+                    <p className="text-sm font-bold text-slate-900">{platformLabel} products</p>
                     <p className="text-xs text-slate-500">
                       {searchState === "loading"
                         ? "Updating results..."
@@ -674,7 +831,7 @@ export function LinkSearchPage() {
                     )}
                     <div className="grid grid-cols-2 items-stretch gap-3 sm:gap-4 lg:grid-cols-3">
                       {searchResults.map((result) => (
-                        <LazadaResultCard
+                        <SearchResultCard
                           key={result.source_id ?? result.url}
                           result={result}
                           rate={rate}
@@ -703,7 +860,7 @@ export function LinkSearchPage() {
                         type="button"
                         onClick={() => {
                           if (!user && guestSearchLocked) {
-                            onSignIn();
+                            setGuestLimitModalOpen(true);
                             return;
                           }
                           void handleSearchPage(searchPage + 1);
@@ -718,9 +875,9 @@ export function LinkSearchPage() {
                   </>
                 ) : (
                   <div className="rounded-2xl border border-dashed border-slate-200 bg-white p-8 text-center">
-                    <p className="text-sm font-semibold text-slate-700">No Lazada products found</p>
+                    <p className="text-sm font-semibold text-slate-700">No {platformLabel} products found</p>
                     <p className="mt-1 text-sm text-slate-400">
-                      Try a shorter keyword, English product name, or paste a Lazada product link.
+                      Try a shorter keyword, English product name, or paste a product link.
                     </p>
                   </div>
                 )}
@@ -758,6 +915,12 @@ export function LinkSearchPage() {
         )}
         </div>
       </section>
+
+      <GuestSearchLimitModal
+        open={guestLimitModalOpen && !user}
+        onClose={() => setGuestLimitModalOpen(false)}
+        onSignIn={onSignIn}
+      />
     </div>
   );
 }

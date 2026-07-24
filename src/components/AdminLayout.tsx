@@ -86,9 +86,11 @@ function AdminShell() {
   return (
     <div className="min-h-screen bg-[radial-gradient(ellipse_at_top_left,_#eef2ff_0%,_#f8fafc_40%,_#f1f5f9_100%)] text-slate-900">
       <div className="mx-auto flex min-h-screen max-w-[1440px]">
-        <aside className="hidden w-64 shrink-0 border-r border-slate-200/80 bg-white/80 backdrop-blur-xl lg:flex lg:flex-col">
+        <aside className="hidden w-64 shrink-0 border-r border-slate-200/80 bg-white/80 backdrop-blur-xl lg:sticky lg:top-0 lg:flex lg:h-screen lg:flex-col">
           <AdminBrand />
-          <AdminNav onNavigate={() => setMobileOpen(false)} />
+          <div className="min-h-0 flex-1 overflow-y-auto">
+            <AdminNav onNavigate={() => setMobileOpen(false)} />
+          </div>
           <AdminSidebarFooter loading={loading} onRefresh={() => void refresh()} />
         </aside>
 
@@ -111,7 +113,9 @@ function AdminShell() {
                   <X className="h-5 w-5" />
                 </button>
               </div>
-              <AdminNav onNavigate={() => setMobileOpen(false)} />
+              <div className="min-h-0 flex-1 overflow-y-auto">
+                <AdminNav onNavigate={() => setMobileOpen(false)} />
+              </div>
               <AdminSidebarFooter loading={loading} onRefresh={() => void refresh()} />
             </aside>
           </div>
@@ -132,15 +136,24 @@ function AdminShell() {
                 <p className="text-[11px] text-slate-500">Admin</p>
               </div>
             </div>
-            <button
-              type="button"
-              onClick={() => void refresh()}
-              disabled={loading}
-              className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 disabled:opacity-60"
-            >
-              <RefreshCw className={`h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`} />
-              Refresh
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => void refresh()}
+                disabled={loading}
+                className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 disabled:opacity-60"
+              >
+                <RefreshCw className={`h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`} />
+                Refresh
+              </button>
+              <Link
+                to="/"
+                className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700"
+              >
+                <ArrowLeft className="h-3.5 w-3.5" />
+                App
+              </Link>
+            </div>
           </header>
 
           <main className="flex-1 px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
@@ -177,7 +190,7 @@ function AdminBrand({ compact = false }: { compact?: boolean }) {
 
 function AdminNav({ onNavigate }: { onNavigate: () => void }) {
   return (
-    <nav className="flex-1 space-y-1 px-3 py-4">
+    <nav className="space-y-1 px-3 py-4">
       {NAV.map(({ to, end, label, icon: Icon }) => (
         <NavLink
           key={to}
@@ -202,7 +215,7 @@ function AdminNav({ onNavigate }: { onNavigate: () => void }) {
 
 function AdminSidebarFooter({ loading, onRefresh }: { loading: boolean; onRefresh: () => void }) {
   return (
-    <div className="space-y-2 border-t border-slate-100 p-4">
+    <div className="shrink-0 space-y-2 border-t border-slate-100 bg-white/95 p-4">
       <button
         type="button"
         onClick={onRefresh}

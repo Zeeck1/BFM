@@ -75,3 +75,52 @@ export function buildTopWishlistChartItems(links: SavedLink[], limit = 5): Chart
         .join(" · "),
     }));
 }
+
+export function buildWishlistSiteChartItems(links: SavedLink[], limit = 6): ChartRankItem[] {
+  const grouped = links.reduce<Record<string, number>>((groups, link) => {
+    const site = link.site_name?.trim() || "Unknown";
+    groups[site] = (groups[site] ?? 0) + 1;
+    return groups;
+  }, {});
+
+  return Object.entries(grouped)
+    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+    .slice(0, limit)
+    .map(([label, count]) => ({ label, count }));
+}
+
+export function summarizeSearchEvents(events: AdminSearchEvent[]) {
+  const uniqueQueries = new Set(
+    events.map((event) => normalizeKey(event.query)).filter(Boolean),
+  );
+  const uniqueUsers = new Set(events.map((event) => event.user_id).filter(Boolean));
+  const top = buildTopSearchChartItems(events, 1)[0];
+  return {
+    total: events.length,
+    uniqueQueries: uniqueQueries.size,
+    uniqueUsers: uniqueUsers.size,
+    topQuery: top?.label ?? null,
+    topCount: top?.count ?? 0,
+  };
+}
+
+export function summarizeWishlistItems(links: SavedLink[]) {
+  const uniqueProducts = new Set(
+    links
+      .map((link) =>
+        link.url.trim() ? normalizeKey(link.url) : normalizeKey(link.title ?? ""),
+      )
+      .filter(Boolean),
+  );
+  const uniqueUsers = new Set(links.map((link) => link.user_id).filter(Boolean));
+  const withPrice = links.filter((link) => link.price_thb != null || link.price_mmk != null).length;
+  const top = buildTopWishlistChartItems(links, 1)[0];
+  return {
+    total: links.length,
+    uniqueProducts: uniqueProducts.size,
+    uniqueUsers: uniqueUsers.size,
+    withPrice,
+    topProduct: top?.label ?? null,
+    topCount: top?.count ?? 0,
+  };
+}
