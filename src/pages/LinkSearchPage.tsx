@@ -470,9 +470,12 @@ export function LinkSearchPage() {
     setSearchPage(1);
     setSearchHasMore(false);
     setSearchError("");
-    // Drop restored search cache so cleared results stay gone.
-    clearLastLazadaSearch();
-    clearLastSheinSearch();
+    // Drop only the active platform's restored search cache.
+    if (searchPlatform === "lazada") {
+      clearLastLazadaSearch();
+    } else {
+      clearLastSheinSearch();
+    }
     inputRef.current?.focus();
   }
 
