@@ -1,6 +1,8 @@
 /** User-facing copy — BFM branded only; never mention third-party APIs. */
 
 export const BFM_ERRORS = {
+  searchDisabled:
+    "Product search is temporarily unavailable on BFM. Please paste a product link instead.",
   searchUnavailable:
     "BFM couldn't complete this search right now. Please try again in a moment, or paste a product link.",
   searchFailed: "BFM couldn't search products right now. Please try again.",

@@ -42,6 +42,7 @@ import { clearLastSheinSearch, loadLastSheinSearch } from "../lib/sheinSearchCac
 import { fetchPreview } from "../lib/preview";
 import { BFM_ERRORS, toBfmUserError } from "../lib/bfmMessages";
 import { isProductUrlSaved } from "../lib/savedLinkMatch";
+import { PRODUCT_SEARCH_ENABLED } from "../lib/productSearchEnabled";
 import { recordSearchHistory } from "../lib/searchHistory";
 import { isFetchableUrl } from "../lib/utils";
 import { formatMMK, formatSoldCount, formatTHB } from "../lib/utils";
@@ -266,7 +267,10 @@ export function LinkSearchPage() {
   }, [user]);
 
   const hasActivity =
-    fetchState !== "idle" || !!preview || searchState !== "idle" || searchResults.length > 0;
+    fetchState !== "idle" ||
+    !!preview ||
+    (PRODUCT_SEARCH_ENABLED &&
+      (searchState !== "idle" || searchResults.length > 0));
 
   function applyCachedSearch(
     platform: SearchPlatform,
@@ -292,6 +296,8 @@ export function LinkSearchPage() {
 
   // Restore the most recent Lazada/SHEIN search when returning to the page
   useEffect(() => {
+    if (!PRODUCT_SEARCH_ENABLED) return;
+
     const lazada = loadLastLazadaSearch();
     const shein = loadLastSheinSearch();
     const candidates = [
@@ -433,6 +439,7 @@ export function LinkSearchPage() {
     if (!trimmed) return;
 
     if (!isFetchableUrl(trimmed)) {
+      if (!PRODUCT_SEARCH_ENABLED) return;
       if (!user && (guestSearchLocked || hasGuestUsedFreeSearch())) {
         setGuestSearchLocked(true);
         setGuestLimitModalOpen(true);
@@ -471,10 +478,12 @@ export function LinkSearchPage() {
     setSearchHasMore(false);
     setSearchError("");
     // Drop only the active platform's restored search cache.
-    if (searchPlatform === "lazada") {
-      clearLastLazadaSearch();
-    } else {
-      clearLastSheinSearch();
+    if (PRODUCT_SEARCH_ENABLED) {
+      if (searchPlatform === "lazada") {
+        clearLastLazadaSearch();
+      } else {
+        clearLastSheinSearch();
+      }
     }
     inputRef.current?.focus();
   }
@@ -502,9 +511,11 @@ export function LinkSearchPage() {
   }
 
   const trimmedInput = url.trim();
-  const isSearching = fetchState === "loading" || searchState === "loading";
+  const isSearching = fetchState === "loading" || (PRODUCT_SEARCH_ENABLED && searchState === "loading");
   const platformLabel = platformDisplayName(searchPlatform);
-  const submitLabel = trimmedInput && !isFetchableUrl(trimmedInput) ? `Search ${platformLabel}` : "Preview";
+  const canPreviewInput = Boolean(trimmedInput) && isFetchableUrl(trimmedInput);
+  const canSearchInput = PRODUCT_SEARCH_ENABLED && Boolean(trimmedInput) && !isFetchableUrl(trimmedInput);
+  const submitLabel = canSearchInput ? `Search ${platformLabel}` : "Preview";
   const previewSaved = preview ? isProductUrlSaved(savedItems, preview.url) : false;
 
   return (
@@ -521,16 +532,28 @@ export function LinkSearchPage() {
             <span className="truncate">Lazada · Shopee · Amazon & more</span>
           </div>
           <h1 className="text-2xl font-extrabold tracking-tight text-white sm:text-3xl lg:text-4xl lg:leading-tight">
-            Search here or{" "}
-            <span className="bg-gradient-to-r from-indigo-400 to-violet-400 bg-clip-text text-transparent">
-              Paste a link
-            </span>
+            {PRODUCT_SEARCH_ENABLED ? (
+              <>
+                Search here or{" "}
+                <span className="bg-gradient-to-r from-indigo-400 to-violet-400 bg-clip-text text-transparent">
+                  Paste a link
+                </span>
+              </>
+            ) : (
+              <>
+                <span className="bg-gradient-to-r from-indigo-400 to-violet-400 bg-clip-text text-transparent">
+                  Paste a link
+                </span>{" "}
+                to save
+              </>
+            )}
           </h1>
           <p className="mx-auto mt-2 max-w-md text-sm text-slate-400 sm:mt-3 sm:max-w-none sm:text-base">
-            Search Lazada or SHEIN products, or paste any product URL — we fetch the details so you can
-            save it to your wishlist.
+            {PRODUCT_SEARCH_ENABLED
+              ? "Search Lazada or SHEIN products, or paste any product URL — we fetch the details so you can save it to your wishlist."
+              : "Paste any product URL — we fetch the details so you can save it to your wishlist."}
           </p>
-          {!user && (
+          {PRODUCT_SEARCH_ENABLED && !user && (
             <p className="mx-auto mt-2 max-w-lg text-xs text-slate-500">
               {guestSearchLocked
                 ? "Free guest search used. Sign in to keep searching."
@@ -538,6 +561,7 @@ export function LinkSearchPage() {
             </p>
           )}
 
+          {PRODUCT_SEARCH_ENABLED && (
           <div
             role="tablist"
             aria-label="Search platform"
@@ -572,10 +596,11 @@ export function LinkSearchPage() {
               );
             })}
           </div>
+          )}
 
           <form
             onSubmit={handleSubmit}
-            className="mt-4 flex w-full min-w-0 flex-col gap-2 sm:mt-5 lg:flex-row lg:overflow-hidden lg:rounded-2xl lg:bg-white lg:shadow-2xl lg:shadow-black/30 lg:ring-1 lg:ring-white/10"
+            className={`flex w-full min-w-0 flex-col gap-2 lg:flex-row lg:overflow-hidden lg:rounded-2xl lg:bg-white lg:shadow-2xl lg:shadow-black/30 lg:ring-1 lg:ring-white/10 ${PRODUCT_SEARCH_ENABLED ? "mt-4 sm:mt-5" : "mt-5 sm:mt-6"}`}
           >
             <div className="relative flex min-w-0 flex-1 items-center overflow-hidden rounded-2xl bg-white shadow-xl shadow-black/20 ring-1 ring-white/10 lg:rounded-none lg:shadow-none lg:ring-0">
               <svg
@@ -595,7 +620,11 @@ export function LinkSearchPage() {
                 value={url}
                 onChange={(e) => setUrl(e.target.value)}
                 onPaste={handlePaste}
-                placeholder={`Search ${platformLabel} or paste a product link...`}
+                placeholder={
+                  PRODUCT_SEARCH_ENABLED
+                    ? `Search ${platformLabel} or paste a product link...`
+                    : "Paste a product link..."
+                }
                 className="w-full min-w-0 bg-transparent py-3.5 pl-10 pr-10 text-sm text-slate-800 placeholder-slate-400 outline-none sm:py-4 sm:pl-11"
               />
               {url && (
@@ -610,7 +639,7 @@ export function LinkSearchPage() {
             </div>
             <button
               type="submit"
-              disabled={isSearching || !trimmedInput}
+              disabled={isSearching || !canPreviewInput && !canSearchInput}
               className="flex w-full shrink-0 items-center justify-center gap-2 rounded-2xl bg-indigo-600 px-5 py-3.5 text-sm font-bold text-white transition hover:bg-indigo-500 disabled:opacity-40 sm:py-4 lg:w-auto lg:rounded-none lg:px-6"
             >
               {isSearching ? (
@@ -627,6 +656,10 @@ export function LinkSearchPage() {
               )}
             </button>
           </form>
+
+          {!PRODUCT_SEARCH_ENABLED && trimmedInput && !isFetchableUrl(trimmedInput) && (
+            <p className="mt-2 text-xs text-amber-200/90">{BFM_ERRORS.searchDisabled}</p>
+          )}
 
           <PlatformShowcase />
         </div>
@@ -652,8 +685,8 @@ export function LinkSearchPage() {
                       Buy For Me
                     </h2>
                     <p className="mt-2 max-w-xl text-sm leading-relaxed text-slate-600 sm:text-[15px]">
-                      Myanmar customers shop from Thailand with confidence — search products, save
-                      favourites, and request purchases through Messenger.
+                      Myanmar customers shop from Thailand with confidence — paste product links,
+                      save favourites, and request purchases through Messenger.
                     </p>
                   </div>
                 </div>
@@ -662,8 +695,10 @@ export function LinkSearchPage() {
                   {[
                     {
                       icon: Search,
-                      title: "Search & paste",
-                      text: "Find Lazada or SHEIN items, or paste any product link.",
+                      title: PRODUCT_SEARCH_ENABLED ? "Search & paste" : "Paste links",
+                      text: PRODUCT_SEARCH_ENABLED
+                        ? "Find Lazada or SHEIN items, or paste any product link."
+                        : "Paste any product link from supported shops.",
                     },
                     {
                       icon: Heart,
@@ -711,9 +746,15 @@ export function LinkSearchPage() {
               <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-xl bg-slate-100">
                 <Search className="h-6 w-6 text-slate-400" />
               </div>
-              <p className="mt-3 text-sm font-semibold text-slate-700">Search {platformLabel} products</p>
+              <p className="mt-3 text-sm font-semibold text-slate-700">
+                {PRODUCT_SEARCH_ENABLED
+                  ? `Search ${platformLabel} products`
+                  : "Paste a product link"}
+              </p>
               <p className="mt-1 text-sm text-slate-400">
-                Type a product name or paste a product URL above.
+                {PRODUCT_SEARCH_ENABLED
+                  ? "Type a product name or paste a product URL above."
+                  : "Copy a product URL from Lazada, Shopee, Amazon and more."}
               </p>
             </div>
           </div>
@@ -731,7 +772,7 @@ export function LinkSearchPage() {
               </div>
             )}
 
-            {searchState === "loading" && searchResults.length === 0 && (
+            {PRODUCT_SEARCH_ENABLED && searchState === "loading" && searchResults.length === 0 && (
               <div className="flex items-center gap-4 rounded-2xl border border-slate-200/80 bg-white p-5 shadow-lg shadow-slate-200/60">
                 <Loader2 className="h-5 w-5 shrink-0 animate-spin text-indigo-500" />
                 <div className="flex-1 space-y-2">
@@ -782,7 +823,7 @@ export function LinkSearchPage() {
               </div>
             )}
 
-            {searchState === "error" && (
+            {PRODUCT_SEARCH_ENABLED && searchState === "error" && (
               <div className="rounded-2xl border border-red-100 bg-red-50 p-5">
                 <p className="text-sm font-semibold text-red-700">{searchError}</p>
                 <p className="mt-1 text-xs text-red-400">
@@ -791,7 +832,8 @@ export function LinkSearchPage() {
               </div>
             )}
 
-            {(searchState === "done" || (searchState === "loading" && searchResults.length > 0)) && (
+            {PRODUCT_SEARCH_ENABLED &&
+              (searchState === "done" || (searchState === "loading" && searchResults.length > 0)) && (
               <div className="space-y-4">
                 <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
                   <div>
@@ -902,11 +944,13 @@ export function LinkSearchPage() {
         </div>
       </section>
 
+      {PRODUCT_SEARCH_ENABLED && (
       <GuestSearchLimitModal
         open={guestLimitModalOpen && !user}
         onClose={() => setGuestLimitModalOpen(false)}
         onSignIn={onSignIn}
       />
+      )}
     </div>
   );
 }

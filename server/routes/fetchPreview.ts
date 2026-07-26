@@ -3,6 +3,7 @@
 
 import { Router } from "express";
 import { BFM_ERRORS } from "../bfmMessages.js";
+import { env } from "../config/env.js";
 import {
   fetchLazadaProductPreview,
   isLazadaProductUrl,
@@ -241,6 +242,11 @@ fetchPreviewRouter.post("/fetch-preview", async (req, res) => {
 });
 
 fetchPreviewRouter.post("/lazada-search", async (req, res) => {
+  if (!env.productSearchEnabled) {
+    res.status(503).json({ error: BFM_ERRORS.searchDisabled });
+    return;
+  }
+
   const body = req.body as Record<string, unknown>;
   const raw: unknown = body?.query;
   const query = typeof raw === "string" ? raw.trim() : "";
@@ -281,6 +287,11 @@ fetchPreviewRouter.post("/lazada-search", async (req, res) => {
 });
 
 fetchPreviewRouter.post("/shein-search", async (req, res) => {
+  if (!env.productSearchEnabled) {
+    res.status(503).json({ error: BFM_ERRORS.searchDisabled });
+    return;
+  }
+
   const body = req.body as Record<string, unknown>;
   const raw: unknown = body?.query;
   const query = typeof raw === "string" ? raw.trim() : "";

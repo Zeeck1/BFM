@@ -29,4 +29,6 @@ export const env = {
   rapidApiSheinLanguage: process.env.RAPIDAPI_SHEIN_LANGUAGE?.trim() || "en",
   /** SHEIN currency (THB so prices map cleanly to MMK) */
   rapidApiSheinCurrency: process.env.RAPIDAPI_SHEIN_CURRENCY?.trim() || "THB",
+  /** Lazada/SHEIN keyword search — set PRODUCT_SEARCH_ENABLED=true to turn back on */
+  productSearchEnabled: process.env.PRODUCT_SEARCH_ENABLED === "true",
 };
