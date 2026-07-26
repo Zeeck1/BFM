@@ -1,4 +1,5 @@
 import type { ProductSearchResult } from "../types";
+import { BFM_ERRORS, toBfmUserError } from "./bfmMessages";
 import { loadPageCache, saveLastLazadaSearch } from "./lazadaSearchCache";
 
 interface LazadaSearchResponse {
@@ -35,17 +36,22 @@ export async function searchLazadaProducts(
     }
   }
 
-  const res = await fetch("/api/lazada-search", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ query: cleaned, page, pageSize: LAZADA_SEARCH_PAGE_SIZE }),
-    signal: AbortSignal.timeout(25_000),
-  });
+  let res: Response;
+  try {
+    res = await fetch("/api/lazada-search", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ query: cleaned, page, pageSize: LAZADA_SEARCH_PAGE_SIZE }),
+      signal: AbortSignal.timeout(25_000),
+    });
+  } catch {
+    throw new Error(BFM_ERRORS.searchUnavailable);
+  }
 
   const data = (await res.json().catch(() => ({}))) as LazadaSearchResponse;
 
   if (!res.ok) {
-    throw new Error(data.error ?? "Failed to search Lazada products");
+    throw new Error(toBfmUserError(data.error, BFM_ERRORS.searchUnavailable));
   }
 
   const result: LazadaSearchPage = {

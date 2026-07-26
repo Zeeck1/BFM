@@ -107,6 +107,10 @@ export function WishlistPage() {
 
   const { items, loading, updateNotes, updatePrice, remove, removeMany } = useSavedItems();
 
+  useEffect(() => {
+    window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+  }, []);
+
   const filteredItems = useMemo(
     () => items.filter((item) => matchesSavedLinkSearch(item, wishlistSearch)),
     [items, wishlistSearch],

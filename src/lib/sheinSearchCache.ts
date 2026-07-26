@@ -88,3 +88,11 @@ export function saveSheinPageCache(query: string, page: SheinSearchPage): void {
   );
   writeJson(PAGE_CACHE_KEY, Object.fromEntries(entries.slice(0, 40)));
 }
+
+export function clearLastSheinSearch(): void {
+  try {
+    localStorage.removeItem(LAST_SEARCH_KEY);
+  } catch {
+    /* ignore */
+  }
+}

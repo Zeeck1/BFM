@@ -2,6 +2,7 @@
 // Fetches Open-Graph / product metadata from an arbitrary URL.
 
 import { Router } from "express";
+import { BFM_ERRORS } from "../bfmMessages.js";
 import {
   fetchLazadaProductPreview,
   isLazadaProductUrl,
@@ -152,7 +153,7 @@ fetchPreviewRouter.post("/fetch-preview", async (req, res) => {
   const urlStr = typeof raw === "string" ? raw.trim() : "";
 
   if (!urlStr) {
-    res.status(400).json({ error: "url is required" });
+    res.status(400).json({ error: BFM_ERRORS.previewUrlRequired });
     return;
   }
 
@@ -161,12 +162,12 @@ fetchPreviewRouter.post("/fetch-preview", async (req, res) => {
     parsed = new URL(urlStr);
     if (!["http:", "https:"].includes(parsed.protocol)) throw new Error();
   } catch {
-    res.status(400).json({ error: "Invalid URL — must start with http:// or https://" });
+    res.status(400).json({ error: BFM_ERRORS.previewUrlInvalid });
     return;
   }
 
   if (!isSafeUrl(parsed)) {
-    res.status(400).json({ error: "URL not allowed" });
+    res.status(400).json({ error: BFM_ERRORS.previewUrlNotAllowed });
     return;
   }
 
@@ -252,17 +253,17 @@ fetchPreviewRouter.post("/lazada-search", async (req, res) => {
         : 1;
 
   if (!query) {
-    res.status(400).json({ error: "query is required" });
+    res.status(400).json({ error: BFM_ERRORS.searchQueryRequired });
     return;
   }
 
   if (query.length > 120) {
-    res.status(400).json({ error: "Search query is too long" });
+    res.status(400).json({ error: BFM_ERRORS.searchQueryTooLong });
     return;
   }
 
   if (!Number.isFinite(page) || page < 1 || page > 100) {
-    res.status(400).json({ error: "Invalid page number" });
+    res.status(400).json({ error: BFM_ERRORS.searchPageInvalid });
     return;
   }
 
@@ -270,8 +271,7 @@ fetchPreviewRouter.post("/lazada-search", async (req, res) => {
 
   if (results.length === 0 && blocked) {
     res.status(503).json({
-      error:
-        "Lazada search is temporarily unavailable from our server. Please try again later or paste a product link directly.",
+      error: BFM_ERRORS.searchUnavailable,
       blocked: true,
     });
     return;
@@ -293,17 +293,17 @@ fetchPreviewRouter.post("/shein-search", async (req, res) => {
         : 1;
 
   if (!query) {
-    res.status(400).json({ error: "query is required" });
+    res.status(400).json({ error: BFM_ERRORS.searchQueryRequired });
     return;
   }
 
   if (query.length > 120) {
-    res.status(400).json({ error: "Search query is too long" });
+    res.status(400).json({ error: BFM_ERRORS.searchQueryTooLong });
     return;
   }
 
   if (!Number.isFinite(page) || page < 1 || page > 100) {
-    res.status(400).json({ error: "Invalid page number" });
+    res.status(400).json({ error: BFM_ERRORS.searchPageInvalid });
     return;
   }
 
@@ -311,8 +311,7 @@ fetchPreviewRouter.post("/shein-search", async (req, res) => {
 
   if (results.length === 0 && blocked) {
     res.status(503).json({
-      error:
-        "SHEIN search is blocked or rate-limited right now (403/empty response). Wait a minute and try again, or paste a SHEIN product link.",
+      error: BFM_ERRORS.searchUnavailable,
       blocked: true,
     });
     return;

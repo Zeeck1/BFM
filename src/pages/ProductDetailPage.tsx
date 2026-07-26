@@ -23,8 +23,10 @@ import { ProductPriceModal } from "../components/ProductPriceModal";
 import { QRCodeModal } from "../components/QRCodeModal";
 import { SiteAvatar } from "../components/SiteAvatar";
 import { useSavedItems } from "../contexts/SavedItemsProvider";
+import { findSavedLinkByUrl } from "../lib/savedLinkMatch";
 import { useExchangeRate } from "../hooks/useExchangeRate";
 import { userAvatarUrl, userDisplayName } from "../lib/auth";
+import { BFM_ERRORS, toBfmUserError } from "../lib/bfmMessages";
 import { fetchPreview } from "../lib/preview";
 import { getOrCreateSharedList, shareUrl, timeRemaining } from "../lib/shareList";
 import { formatMMK, formatSoldCount, formatTHB } from "../lib/utils";
@@ -67,11 +69,22 @@ export function ProductDetailPage() {
   const [creatingQr, setCreatingQr] = useState(false);
   const wasSignedIn = useRef(Boolean(user));
 
-  const savedItem = useMemo(
-    () => (savedId ? items.find((item) => item.id === savedId) ?? null : null),
-    [items, savedId],
-  );
+  useEffect(() => {
+    window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+  }, [savedId, productUrl]);
+
   const transientProduct = state?.product;
+  const savedItem = useMemo(() => {
+    if (savedId) {
+      const byId = items.find((item) => item.id === savedId);
+      if (byId) return byId;
+    }
+    for (const candidate of [productUrl, transientProduct?.url, fetchedProduct?.url]) {
+      const byUrl = findSavedLinkByUrl(items, candidate);
+      if (byUrl) return byUrl;
+    }
+    return null;
+  }, [items, savedId, productUrl, transientProduct?.url, fetchedProduct?.url]);
   const product = savedItem
     ? { ...fetchedProduct, ...transientProduct, ...savedItem }
     : transientProduct
@@ -120,7 +133,7 @@ export function ProductDetailPage() {
       })
       .catch((error: unknown) => {
         if (!controller.signal.aborted) {
-          setFetchError(error instanceof Error ? error.message : "Could not load product details.");
+          setFetchError(toBfmUserError(error, BFM_ERRORS.productUnavailable));
         }
       })
       .finally(() => {
@@ -128,7 +141,19 @@ export function ProductDetailPage() {
       });
 
     return () => controller.abort();
-  }, [productUrl, savedItem]);
+  }, [productUrl, savedItem?.url]);
+
+  // Keep detail route in sync when this product is already in the wishlist.
+  useEffect(() => {
+    if (!savedItem || savedId === savedItem.id) return;
+    navigate(`/product-detail?id=${encodeURIComponent(savedItem.id)}`, {
+      replace: true,
+      state: {
+        product: transientProduct ?? fetchedProduct ?? savedItem,
+        from: state?.from ?? "/",
+      } satisfies DetailLocationState,
+    });
+  }, [savedItem, savedId, navigate, transientProduct, fetchedProduct, state?.from]);
 
   async function handleSave() {
     if (!product || !user) {
@@ -219,22 +244,22 @@ export function ProductDetailPage() {
       <main className="mx-auto max-w-6xl px-4 py-5 sm:px-6 sm:py-8">
         <div className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
           <div className="grid lg:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)]">
-            <section className="flex min-h-72 items-center justify-center bg-slate-50 p-5 sm:min-h-[30rem] sm:p-8">
+            <section className="flex min-h-72 items-start justify-center bg-slate-50 p-5 sm:min-h-[30rem] sm:p-8">
               {hasImage ? (
                 <button
                   type="button"
                   onClick={() => setLightboxOpen(true)}
-                  className="group flex h-full w-full items-center justify-center"
+                  className="group flex w-full items-start justify-center"
                   title="View full image"
                 >
                   <img
                     src={product.image_url}
                     alt={product.title ?? "Product"}
-                    className="max-h-[28rem] max-w-full object-contain transition duration-200 group-hover:scale-[1.02]"
+                    className="max-h-[28rem] max-w-full object-contain object-top transition duration-200 group-hover:scale-[1.02]"
                   />
                 </button>
               ) : (
-                <div className="flex flex-col items-center gap-3 text-slate-400">
+                <div className="flex flex-col items-center gap-3 pt-8 text-slate-400">
                   <SiteAvatar name={product.site_name} />
                   <span className="flex items-center gap-1.5 text-sm font-medium">
                     <ImageOff className="h-4 w-4" />
@@ -489,7 +514,7 @@ function DetailUnavailable({ backTo, error }: { backTo: string; error?: string }
       <div className="w-full rounded-2xl border border-slate-200 bg-white p-7 shadow-sm">
         <h1 className="text-lg font-bold text-slate-900">Product details unavailable</h1>
         <p className="mt-2 text-sm leading-relaxed text-slate-500">
-          {error || "This product may no longer be available. Return to the previous page and try again."}
+          {toBfmUserError(error, BFM_ERRORS.productUnavailable)}
         </p>
         <Link
           to={backTo}

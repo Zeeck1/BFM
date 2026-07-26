@@ -60,7 +60,7 @@ export function GuestSearchLimitModal({
               </span>
               <div>
                 <p className="text-sm font-semibold text-slate-900">Unlimited searches</p>
-                <p className="text-xs text-slate-500">Keep exploring Lazada and SHEIN products</p>
+                <p className="text-xs text-slate-500">Keep exploring products on BFM</p>
               </div>
             </li>
             <li className="flex items-start gap-3">

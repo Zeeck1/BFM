@@ -82,6 +82,10 @@ export function ProfilePage() {
   const [saved, setSaved] = useState(false);
 
   useEffect(() => {
+    window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+  }, []);
+
+  useEffect(() => {
     if (!user) {
       navigate("/", { replace: true });
       return;

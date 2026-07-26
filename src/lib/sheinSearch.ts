@@ -1,4 +1,5 @@
 import type { ProductSearchResult } from "../types";
+import { BFM_ERRORS, toBfmUserError } from "./bfmMessages";
 import {
   loadSheinPageCache,
   saveLastSheinSearch,
@@ -38,18 +39,22 @@ export async function searchSheinProducts(
     }
   }
 
-  const res = await fetch("/api/shein-search", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ query: cleaned, page, pageSize: SHEIN_SEARCH_PAGE_SIZE }),
-    // SHEIN RapidAPI is slow (often 20–50s); keep above the server timeout + retry budget.
-    signal: AbortSignal.timeout(130_000),
-  });
+  let res: Response;
+  try {
+    res = await fetch("/api/shein-search", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ query: cleaned, page, pageSize: SHEIN_SEARCH_PAGE_SIZE }),
+      signal: AbortSignal.timeout(130_000),
+    });
+  } catch {
+    throw new Error(BFM_ERRORS.searchUnavailable);
+  }
 
   const data = (await res.json().catch(() => ({}))) as SheinSearchResponse;
 
   if (!res.ok) {
-    throw new Error(data.error ?? "Failed to search SHEIN products");
+    throw new Error(toBfmUserError(data.error, BFM_ERRORS.searchUnavailable));
   }
 
   const result: SheinSearchPage = {

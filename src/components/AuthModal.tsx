@@ -62,7 +62,7 @@ export function AuthModal({ open, onClose }: AuthModalProps) {
     setError("");
     const { error: authError } = await signInWithGoogle();
     if (authError) {
-      setError(authError.message);
+      setError("BFM couldn't complete sign-in right now. Please try again.");
       setLoading(false);
     }
     // On success the browser redirects to Google — keep loading state.

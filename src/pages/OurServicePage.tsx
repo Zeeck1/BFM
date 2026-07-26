@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import {
   ArrowRight,
@@ -151,6 +151,10 @@ export function OurServicePage() {
     const saved = localStorage.getItem("bfm_service_lang");
     return saved === "en" ? "en" : "my";
   });
+
+  useEffect(() => {
+    window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+  }, []);
 
   const t = TRANSLATIONS[lang];
 

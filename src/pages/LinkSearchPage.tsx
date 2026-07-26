@@ -36,10 +36,12 @@ import {
   markGuestFreeSearchUsed,
 } from "../lib/guestSearchLimit";
 import { LAZADA_SEARCH_PAGE_SIZE, searchLazadaProducts } from "../lib/lazadaSearch";
-import { loadLastLazadaSearch } from "../lib/lazadaSearchCache";
+import { clearLastLazadaSearch, loadLastLazadaSearch } from "../lib/lazadaSearchCache";
 import { SHEIN_SEARCH_PAGE_SIZE, searchSheinProducts } from "../lib/sheinSearch";
-import { loadLastSheinSearch } from "../lib/sheinSearchCache";
+import { clearLastSheinSearch, loadLastSheinSearch } from "../lib/sheinSearchCache";
 import { fetchPreview } from "../lib/preview";
+import { BFM_ERRORS, toBfmUserError } from "../lib/bfmMessages";
+import { isProductUrlSaved } from "../lib/savedLinkMatch";
 import { recordSearchHistory } from "../lib/searchHistory";
 import { isFetchableUrl } from "../lib/utils";
 import { formatMMK, formatSoldCount, formatTHB } from "../lib/utils";
@@ -239,19 +241,17 @@ export function LinkSearchPage() {
   const [fetchState, setFetchState] = useState<FetchState>("idle");
   const [preview, setPreview] = useState<ProductPreview | null>(null);
   const [fetchError, setFetchError] = useState("");
-  const [previewSaved, setPreviewSaved] = useState(false);
   const [searchState, setSearchState] = useState<FetchState>("idle");
   const [searchResults, setSearchResults] = useState<ProductSearchResult[]>([]);
   const [searchPage, setSearchPage] = useState(1);
   const [searchHasMore, setSearchHasMore] = useState(false);
   const [searchError, setSearchError] = useState("");
-  const [savedResultUrls, setSavedResultUrls] = useState<Set<string>>(new Set());
   const [guestSearchLocked, setGuestSearchLocked] = useState(() => hasGuestUsedFreeSearch());
   const [guestLimitModalOpen, setGuestLimitModalOpen] = useState(false);
   const [searchPlatform, setSearchPlatform] = useState<SearchPlatform>("lazada");
 
   const { rate } = useExchangeRate();
-  const { saving, save } = useSavedItems();
+  const { items: savedItems, saving, save } = useSavedItems();
   const inputRef = useRef<HTMLInputElement>(null);
   const resultsRef = useRef<HTMLDivElement>(null);
 
@@ -341,7 +341,6 @@ export function LinkSearchPage() {
       return;
     }
 
-    setPreviewSaved(false);
     setSearchState("idle");
     setSearchResults([]);
     setSearchPage(1);
@@ -356,7 +355,7 @@ export function LinkSearchPage() {
         setPreview(data);
         setFetchState("done");
       } catch (e) {
-        setFetchError(e instanceof Error ? e.message : "Failed to load preview");
+        setFetchError(toBfmUserError(e, BFM_ERRORS.previewFailed));
         setFetchState("error");
       }
     }, 700);
@@ -396,13 +395,9 @@ export function LinkSearchPage() {
     setPreview(null);
     setFetchState("idle");
     setFetchError("");
-    setPreviewSaved(false);
     setSearchError("");
     setSearchPage(page);
     setSearchPlatform(platform);
-    if (page === 1) {
-      setSavedResultUrls(new Set());
-    }
 
     // Keep previous results visible while loading a new page/query when possible
     setSearchState("loading");
@@ -426,7 +421,7 @@ export function LinkSearchPage() {
         void recordSearchHistory(user.id, `${platformLabel}: ${query}`);
       }
     } catch (e) {
-      setSearchError(e instanceof Error ? e.message : `Failed to search ${platformLabel} products`);
+      setSearchError(toBfmUserError(e, BFM_ERRORS.searchFailed));
       setSearchHasMore(false);
       setSearchState("error");
     }
@@ -447,7 +442,6 @@ export function LinkSearchPage() {
       return;
     }
 
-    setPreviewSaved(false);
     setSearchState("idle");
     setSearchResults([]);
     setSearchPage(1);
@@ -461,7 +455,7 @@ export function LinkSearchPage() {
       setPreview(data);
       setFetchState("done");
     } catch (e) {
-      setFetchError(e instanceof Error ? e.message : "Failed to load preview");
+      setFetchError(toBfmUserError(e, BFM_ERRORS.previewFailed));
       setFetchState("error");
     }
   }
@@ -471,13 +465,14 @@ export function LinkSearchPage() {
     setPreview(null);
     setFetchState("idle");
     setFetchError("");
-    setPreviewSaved(false);
     setSearchState("idle");
     setSearchResults([]);
     setSearchPage(1);
     setSearchHasMore(false);
     setSearchError("");
-    setSavedResultUrls(new Set());
+    // Drop restored search cache so cleared results stay gone.
+    clearLastLazadaSearch();
+    clearLastSheinSearch();
     inputRef.current?.focus();
   }
 
@@ -492,8 +487,7 @@ export function LinkSearchPage() {
       onSignIn();
       return;
     }
-    const saved = await save(preview, rate);
-    if (saved) setPreviewSaved(true);
+    await save(preview, rate);
   }
 
   async function handleSaveSearchResult(result: ProductSearchResult) {
@@ -501,21 +495,14 @@ export function LinkSearchPage() {
       onSignIn();
       return;
     }
-
-    const saved = await save(result, rate);
-    if (saved) {
-      setSavedResultUrls((current) => {
-        const next = new Set(current);
-        next.add(result.url);
-        return next;
-      });
-    }
+    await save(result, rate);
   }
 
   const trimmedInput = url.trim();
   const isSearching = fetchState === "loading" || searchState === "loading";
   const platformLabel = platformDisplayName(searchPlatform);
   const submitLabel = trimmedInput && !isFetchableUrl(trimmedInput) ? `Search ${platformLabel}` : "Preview";
+  const previewSaved = preview ? isProductUrlSaved(savedItems, preview.url) : false;
 
   return (
     <div className="min-h-[calc(100vh-3.5rem)]">
@@ -748,8 +735,8 @@ export function LinkSearchPage() {
                   <p className="text-sm font-semibold text-slate-700">Searching {platformLabel} products...</p>
                   <p className="text-xs text-slate-400">
                     {searchPlatform === "shein"
-                      ? "SHEIN can take 20–60 seconds. Please wait…"
-                      : "Usually 1–3 seconds."}
+                      ? "BFM is searching — this can take a little longer. Please wait…"
+                      : "BFM usually responds in a few seconds."}
                   </p>
                 </div>
               </div>
@@ -759,7 +746,7 @@ export function LinkSearchPage() {
               <div className="rounded-2xl border border-red-100 bg-red-50 p-5">
                 <p className="text-sm font-semibold text-red-700">{fetchError}</p>
                 <p className="mt-1 text-xs text-red-400">
-                  The link couldn&apos;t be fetched, but you can still save it.
+                  BFM couldn&apos;t load the preview, but you can still save this link.
                 </p>
                 {isFetchableUrl(url.trim()) && (
                   <div className="mt-4 flex flex-wrap gap-2">
@@ -767,10 +754,7 @@ export function LinkSearchPage() {
                       <button
                         onClick={async () => {
                           const saved = await save({ url: url.trim() }, rate);
-                          if (saved) {
-                            setPreviewSaved(true);
-                            setFetchState("idle");
-                          }
+                          if (saved) setFetchState("idle");
                         }}
                         disabled={saving}
                         className="flex items-center gap-2 rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-700 disabled:opacity-50"
@@ -799,8 +783,7 @@ export function LinkSearchPage() {
               <div className="rounded-2xl border border-red-100 bg-red-50 p-5">
                 <p className="text-sm font-semibold text-red-700">{searchError}</p>
                 <p className="mt-1 text-xs text-red-400">
-                  Search could not be loaded right now. Please try another keyword or paste a
-                  direct product link.
+                  Try another keyword on BFM, or paste a product link instead.
                 </p>
               </div>
             )}
@@ -837,7 +820,7 @@ export function LinkSearchPage() {
                           rate={rate}
                           onSave={() => handleSaveSearchResult(result)}
                           saving={saving}
-                          saved={savedResultUrls.has(result.url)}
+                          saved={isProductUrlSaved(savedItems, result.url)}
                           loggedIn={!!user}
                           onSignIn={onSignIn}
                         />
