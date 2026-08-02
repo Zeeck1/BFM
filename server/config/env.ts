@@ -15,20 +15,61 @@ export const env = {
    *   https://api.scrapingant.com/v2/general?x-api-key=KEY&url={url}
    */
   lazadaProxyUrl: process.env.LAZADA_PROXY_URL?.trim() ?? "",
-  /** RapidAPI key for Lazada / SHEIN product search */
+  /** RapidAPI key for Lazada product search */
   rapidApiKey: process.env.RAPIDAPI_KEY?.trim() ?? "",
   /** RapidAPI host for Lazada search */
   rapidApiLazadaHost:
     process.env.RAPIDAPI_LAZADA_HOST?.trim() || "lazada-api.p.rapidapi.com",
-  /** RapidAPI host for SHEIN search (things4u Shein Scraper) */
-  rapidApiSheinHost:
-    process.env.RAPIDAPI_SHEIN_HOST?.trim() || "shein-scraper.p.rapidapi.com",
-  /** SHEIN market country code (TH for BuyForMe) */
-  rapidApiSheinCountry: process.env.RAPIDAPI_SHEIN_COUNTRY?.trim() || "TH",
-  /** SHEIN language */
-  rapidApiSheinLanguage: process.env.RAPIDAPI_SHEIN_LANGUAGE?.trim() || "en",
-  /** SHEIN currency (THB so prices map cleanly to MMK) */
-  rapidApiSheinCurrency: process.env.RAPIDAPI_SHEIN_CURRENCY?.trim() || "THB",
-  /** Lazada/SHEIN keyword search — set PRODUCT_SEARCH_ENABLED=true to turn back on */
+  /** Lazada keyword search — set PRODUCT_SEARCH_ENABLED=true to enable */
   productSearchEnabled: process.env.PRODUCT_SEARCH_ENABLED === "true",
+  /** Lazada Affiliate Open API (LiteApp Key) */
+  lazadaAffiliateAppKey: process.env.LAZADA_AFFILIATE_APP_KEY?.trim() ?? "",
+  /** Lazada Affiliate Open API (LiteApp Secret) */
+  lazadaAffiliateAppSecret: process.env.LAZADA_AFFILIATE_APP_SECRET?.trim() ?? "",
+  /** Lazada Affiliate User Token */
+  lazadaAffiliateUserToken: process.env.LAZADA_AFFILIATE_USER_TOKEN?.trim() ?? "",
+  /** Lazada Affiliate REST base (Thailand) */
+  lazadaAffiliateBaseUrl:
+    process.env.LAZADA_AFFILIATE_BASE_URL?.trim() ||
+    "https://api.lazada.co.th/rest",
+  /** Supabase project URL (same as Vite client URL) */
+  supabaseUrl:
+    process.env.SUPABASE_URL?.trim() ||
+    process.env.VITE_SUPABASE_URL?.trim() ||
+    "",
+  /** Service role key — catalog sync/search (never expose to browser) */
+  supabaseServiceRoleKey: process.env.SUPABASE_SERVICE_ROLE_KEY?.trim() ?? "",
+  /** Max feed pages to pull per sync/source (each page up to 40 products) */
+  lazadaFeedSyncMaxPages: Math.min(
+    Math.max(Number.parseInt(process.env.LAZADA_FEED_SYNC_MAX_PAGES ?? "50", 10) || 50, 1),
+    500,
+  ),
+  /**
+   * When true, search also walks categoryL1 values found in offerType=1
+   * to pull more products (Open API returns different sets per category).
+   */
+  lazadaFeedExpandCategories: process.env.LAZADA_FEED_EXPAND_CATEGORIES !== "false",
+  /** Cap how many categoryL1 feeds to expand (each can be many pages). */
+  lazadaFeedMaxCategories: Math.min(
+    Math.max(Number.parseInt(process.env.LAZADA_FEED_MAX_CATEGORIES ?? "40", 10) || 40, 0),
+    120,
+  ),
+  /** Comma-separated MM campaign IDs for offerType=2 */
+  lazadaAffiliateMmCampaignIds: (process.env.LAZADA_AFFILIATE_MM_CAMPAIGN_IDS ?? "")
+    .split(",")
+    .map((v) => Number.parseInt(v.trim(), 10))
+    .filter((n) => Number.isFinite(n) && n > 0),
+  /** Comma-separated DM invite IDs for offerType=3 */
+  lazadaAffiliateDmInviteIds: (process.env.LAZADA_AFFILIATE_DM_INVITE_IDS ?? "")
+    .split(",")
+    .map((v) => Number.parseInt(v.trim(), 10))
+    .filter((n) => Number.isFinite(n) && n > 0),
+  /**
+   * Minutes between live Affiliate → Supabase syncs (0 = boot sync only).
+   * Default 60. Keeps Feed DB updated without manual refresh.
+   */
+  lazadaFeedLiveSyncMinutes: Math.min(
+    Math.max(Number.parseInt(process.env.LAZADA_FEED_LIVE_SYNC_MINUTES ?? "60", 10) || 0, 0),
+    24 * 60,
+  ),
 };

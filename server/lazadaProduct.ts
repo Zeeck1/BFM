@@ -2,6 +2,7 @@
 // Lazada Thailand product page metadata + price extraction.
 
 import { env } from "./config/env.js";
+import { extractHighlightsFromHtml, splitProductCopy } from "./productCopy.js";
 
 const USER_AGENT =
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36";
@@ -12,6 +13,8 @@ export interface LazadaPreviewResult {
   url: string;
   title?: string;
   description?: string;
+  /** Lazada PDP "Highlights" bullets */
+  highlights?: string[];
   image_url?: string;
   site_name: string;
   price_thb?: number;
@@ -32,6 +35,8 @@ export interface LazadaSearchResponse {
   has_more: boolean;
   /** True when Lazada served a bot-check page instead of product data. */
   blocked?: boolean;
+  /** Monthly/plan quota exceeded on the search provider. */
+  quota_exceeded?: boolean;
 }
 
 export function isLazadaProductUrl(raw: string): boolean {
@@ -742,8 +747,15 @@ export async function searchLazadaProducts(
     }
     return rapid ?? { results: [], has_more: false };
   } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
     console.warn("[BFM] RapidAPI Lazada search failed:", err);
-    return { results: [], has_more: false, blocked: true };
+    const quota = /\b429\b|quota|exceeded/i.test(message);
+    return {
+      results: [],
+      has_more: false,
+      blocked: true,
+      quota_exceeded: quota,
+    };
   }
 }
 
@@ -780,9 +792,15 @@ export async function fetchLazadaProductPreview(rawUrl: string): Promise<LazadaP
       pickImage(jsonLd?.image) ||
       undefined;
 
-    const description =
+    const rawDescription =
       decodeHtml(readMeta(html, "og:description") || readMeta(html, "description")) ||
-      undefined;
+      "";
+    const fromHtmlHighlights = extractHighlightsFromHtml(html);
+    const split = splitProductCopy(rawDescription, cleanTitle);
+    const highlights =
+      fromHtmlHighlights.length > 0 ? fromHtmlHighlights : split.highlights;
+    const description =
+      split.description || (!highlights.length ? rawDescription : "") || undefined;
 
     const price_thb = extractLazadaPriceThb(html);
     const seller = asRecord(jsonLd?.seller) ?? asRecord(asRecord(jsonLd?.offers)?.seller);
@@ -798,6 +816,7 @@ export async function fetchLazadaProductPreview(rawUrl: string): Promise<LazadaP
       url: finalUrl,
       title: cleanTitle || undefined,
       description: description || undefined,
+      highlights: highlights.length > 0 ? highlights : undefined,
       image_url: image_url || undefined,
       site_name: "Lazada",
       price_thb,

@@ -15,6 +15,8 @@ export interface ProductPreview {
   url: string;
   title?: string;
   description?: string;
+  /** Lazada-style Highlights bullets (separate from Description). */
+  highlights?: string[];
   image_url?: string;
   price_thb?: number;
   site_name?: string;

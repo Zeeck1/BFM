@@ -35,7 +35,6 @@ interface SavedItemsContextValue {
   saving: boolean;
   save: (preview: ProductPreview, exchangeRate: number) => Promise<SavedLink | null>;
   updateNotes: (id: string, notes: string) => Promise<boolean>;
-  updatePrice: (id: string, price_mmk: number | null, price_thb: number | null) => Promise<boolean>;
   remove: (id: string) => Promise<boolean>;
   removeMany: (ids: string[]) => Promise<boolean>;
   refetch: () => Promise<void>;
@@ -163,32 +162,6 @@ export function SavedItemsProvider({
     [userId],
   );
 
-  const updatePrice = useCallback(
-    async (id: string, price_mmk: number | null, price_thb: number | null): Promise<boolean> => {
-      const { data, error } = await supabase
-        .from("saved_links")
-        .update({ price_mmk, price_thb })
-        .eq("id", id)
-        .select()
-        .single();
-
-      if (error || !data) return false;
-
-      const updated = normalizeSavedLink(data as SavedLink);
-      setItems((prev) => prev.map((item) => (item.id === id ? updated : item)));
-
-      if (userId) {
-        try {
-          await syncSavedItemInSharedLists(userId, updated);
-        } catch (err) {
-          console.error("[useSavedItems] sync price failed:", err);
-        }
-      }
-      return true;
-    },
-    [userId],
-  );
-
   const remove = useCallback(
     async (id: string): Promise<boolean> => {
       if (!userId) return false;
@@ -262,12 +235,11 @@ export function SavedItemsProvider({
       saving,
       save,
       updateNotes,
-      updatePrice,
       remove,
       removeMany,
       refetch: fetchItems,
     }),
-    [items, loading, saving, save, updateNotes, updatePrice, remove, removeMany, fetchItems],
+    [items, loading, saving, save, updateNotes, remove, removeMany, fetchItems],
   );
 
   return <SavedItemsContext.Provider value={value}>{children}</SavedItemsContext.Provider>;

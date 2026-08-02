@@ -8,7 +8,6 @@ import {
   MessageCircle,
   MoreHorizontal,
   StickyNote,
-  Tag,
   Trash2,
   X,
 } from "lucide-react";
@@ -23,7 +22,6 @@ interface SavedItemCardProps {
   selected: boolean;
   onToggleSelect: () => void;
   onEditNotes: () => void;
-  onEditPrice: () => void;
   onDelete: () => void;
 }
 
@@ -35,7 +33,6 @@ function ItemActionMenu({
   onRequestDelete,
   onCancelDelete,
   onEditNotes,
-  onEditPrice,
   variant,
 }: {
   item: SavedLink;
@@ -45,7 +42,6 @@ function ItemActionMenu({
   onRequestDelete: () => void;
   onCancelDelete: () => void;
   onEditNotes: () => void;
-  onEditPrice: () => void;
   variant: "sheet" | "dropdown";
 }) {
   const isSheet = variant === "sheet";
@@ -107,19 +103,6 @@ function ItemActionMenu({
         <StickyNote className="h-4 w-4 shrink-0 text-amber-400" />
         {item.notes?.trim() ? "Edit notes" : "Add notes"}
       </button>
-      <button
-        type="button"
-        onClick={() => {
-          onClose();
-          onEditPrice();
-        }}
-        className={`flex w-full items-center gap-2.5 text-sm text-slate-700 hover:bg-slate-50 ${
-          isSheet ? "rounded-xl px-4 py-3.5" : "px-3.5 py-2.5"
-        }`}
-      >
-        <Tag className="h-4 w-4 shrink-0 text-indigo-400" />
-        {item.price_mmk != null || item.price_thb != null ? "Edit price" : "Set price"}
-      </button>
 
       <div className={`${isSheet ? "mx-4" : "mx-3"} my-1 h-px bg-slate-100`} />
 
@@ -161,7 +144,6 @@ export function SavedItemCard({
   selected,
   onToggleSelect,
   onEditNotes,
-  onEditPrice,
   onDelete,
 }: SavedItemCardProps) {
   const [imgError, setImgError] = useState(false);
@@ -210,7 +192,6 @@ export function SavedItemCard({
     onRequestDelete: () => setConfirmDelete(true),
     onCancelDelete: () => setConfirmDelete(false),
     onEditNotes,
-    onEditPrice,
   };
 
   return (
@@ -303,27 +284,18 @@ export function SavedItemCard({
 
           <div className="mt-auto border-t border-slate-100 pt-3">
             {item.price_mmk != null ? (
-              <button
-                type="button"
-                onClick={onEditPrice}
-                className="text-left transition hover:opacity-70"
-                title="Edit price"
-              >
+              <div>
                 <p className="text-sm font-bold text-slate-900 sm:text-base">{formatMMK(item.price_mmk)}</p>
                 {item.price_thb != null && (
                   <p className="text-[11px] text-slate-400">{formatTHB(item.price_thb)}</p>
                 )}
-              </button>
+              </div>
+            ) : item.price_thb != null ? (
+              <div>
+                <p className="text-sm font-bold text-slate-900 sm:text-base">{formatTHB(item.price_thb)}</p>
+              </div>
             ) : (
-              <button
-                type="button"
-                onClick={onEditPrice}
-                className="flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[11px] italic text-slate-400 transition hover:bg-indigo-50 hover:text-indigo-500 hover:not-italic"
-                title="Set price"
-              >
-                <Tag className="h-3 w-3 shrink-0" />
-                Set price
-              </button>
+              <p className="text-[11px] italic text-slate-400">Price not set</p>
             )}
             <Link
               to={`/product-detail?id=${encodeURIComponent(item.id)}`}

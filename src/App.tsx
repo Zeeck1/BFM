@@ -25,7 +25,6 @@ import { AdminOrdersPage } from "./pages/admin/AdminOrdersPage";
 import { SharedListPage } from "./pages/SharedListPage";
 import { TermsOfServicePage } from "./pages/TermsOfServicePage";
 import { WishlistPage } from "./pages/WishlistPage";
-
 export default function App() {
   const [user, setUser] = useState<User | null>(null);
   const [authOpen, setAuthOpen] = useState(false);

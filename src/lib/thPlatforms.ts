@@ -57,19 +57,6 @@ export const PLATFORM_CATEGORIES: PlatformCategory[] = [
     ],
   },
   {
-    id: "fashion",
-    label: "Fashion",
-    platforms: [
-      {
-        id: "shein",
-        name: "SHEIN",
-        url: "https://th.shein.com",
-        logo: "https://www.google.com/s2/favicons?domain=shein.com&sz=128",
-        color: "#000000",
-      },
-    ],
-  },
-  {
     id: "cosmetics",
     label: "Cosmetics & Brands",
     platforms: [

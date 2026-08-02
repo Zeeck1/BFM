@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Link } from "react-router-dom";
 import { BookmarkCheck, BookmarkPlus, ExternalLink, Loader2 } from "lucide-react";
 import { formatTHB } from "../lib/utils";
+import { saveLinkSearchScroll } from "../lib/lazadaFeedCache";
 import type { ProductPreview } from "../types";
 import { ImageLightbox } from "./ImageLightbox";
 import { SiteAvatar } from "./SiteAvatar";
@@ -58,6 +59,7 @@ export function ProductPreviewCard({
           <Link
             to={`/product-detail?url=${encodeURIComponent(preview.url)}`}
             state={{ product: preview, from: "/" }}
+            onClick={() => saveLinkSearchScroll(window.scrollY, preview.url)}
             className="line-clamp-3 block text-base font-semibold leading-snug text-slate-900 transition hover:text-indigo-600"
           >
             {preview.title ?? preview.url}

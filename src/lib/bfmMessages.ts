@@ -5,10 +5,16 @@ export const BFM_ERRORS = {
     "Product search is temporarily unavailable on BFM. Please paste a product link instead.",
   searchUnavailable:
     "BFM couldn't complete this search right now. Please try again in a moment, or paste a product link.",
+  searchQuotaExceeded:
+    "BFM search is temporarily limited. Please try again later, or paste a product link.",
   searchFailed: "BFM couldn't search products right now. Please try again.",
   searchQueryRequired: "Please enter a product name to search on BFM.",
   searchQueryTooLong: "That search is too long. Please use a shorter product name.",
   searchPageInvalid: "BFM couldn't open that results page. Please try again.",
+  feedUnavailable:
+    "BFM couldn't load Lazada products right now. Please try again, or paste a product link.",
+  feedNotConfigured:
+    "Lazada product browse is not configured on BFM yet. Please paste a product link instead.",
   previewFailed:
     "BFM couldn't load this product preview. You can still save the link to your wishlist.",
   previewUrlRequired: "Please paste a product link to continue on BFM.",

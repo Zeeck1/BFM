@@ -16,7 +16,6 @@ import {
 import type { AppOutletContext } from "../components/AppLayout";
 import { LinkSlipModal } from "../components/LinkSlipModal";
 import { ProductNotesModal } from "../components/ProductNotesModal";
-import { ProductPriceModal } from "../components/ProductPriceModal";
 import { QRCodeModal } from "../components/QRCodeModal";
 import { SavedItemCard } from "../components/SavedItemCard";
 import { useSavedItems } from "../contexts/SavedItemsProvider";
@@ -96,7 +95,6 @@ export function WishlistPage() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [slipOpen, setSlipOpen] = useState(false);
   const [notesItem, setNotesItem] = useState<SavedLink | null>(null);
-  const [priceItem, setPriceItem] = useState<SavedLink | null>(null);
   const [qrOpen, setQrOpen] = useState(false);
   const [qrShareUrl, setQrShareUrl] = useState("");
   const [qrExpiresIn, setQrExpiresIn] = useState("");
@@ -105,7 +103,7 @@ export function WishlistPage() {
   const [removing, setRemoving] = useState(false);
   const searchRef = useRef<HTMLInputElement>(null);
 
-  const { items, loading, updateNotes, updatePrice, remove, removeMany } = useSavedItems();
+  const { items, loading, updateNotes, remove, removeMany } = useSavedItems();
 
   useEffect(() => {
     window.scrollTo({ top: 0, left: 0, behavior: "auto" });
@@ -278,7 +276,7 @@ export function WishlistPage() {
                   <p className="mt-0.5 text-xs text-slate-500">
                     {totalSummary.pricedCount > 0
                       ? `${totalSummary.pricedCount} priced item${totalSummary.pricedCount !== 1 ? "s" : ""}`
-                      : "Add prices to calculate your total"}
+                      : "Totals appear when items have prices"}
                   </p>
                 </div>
 
@@ -369,7 +367,6 @@ export function WishlistPage() {
                 selected={selectedIds.has(item.id)}
                 onToggleSelect={() => toggleSelect(item.id)}
                 onEditNotes={() => setNotesItem(item)}
-                onEditPrice={() => setPriceItem(item)}
                 onDelete={() => {
                   remove(item.id);
                   setSelectedIds((prev) => {
@@ -458,12 +455,6 @@ export function WishlistPage() {
       )}
 
       <LinkSlipModal items={selectedItems} open={slipOpen} onClose={() => setSlipOpen(false)} />
-      <ProductPriceModal
-        item={priceItem}
-        open={priceItem != null}
-        onClose={() => setPriceItem(null)}
-        onSave={(id, price_mmk, price_thb) => updatePrice(id, price_mmk, price_thb)}
-      />
       <ProductNotesModal
         item={notesItem}
         open={notesItem != null}

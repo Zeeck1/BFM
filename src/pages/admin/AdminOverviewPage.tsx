@@ -1,9 +1,26 @@
+import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { ArrowRight, Banknote, BarChart3, Heart, Link2, Package, Search, Users } from "lucide-react";
+import {
+  ArrowRight,
+  Banknote,
+  BarChart3,
+  Heart,
+  Link2,
+  Loader2,
+  Package,
+  RefreshCw,
+  Search,
+  Users,
+} from "lucide-react";
 import { useAdminData } from "../../contexts/AdminDataProvider";
 import { AdminErrorNotice, AdminPageHeader, dateLabel, ownerLabel } from "../../components/admin/AdminUi";
 import { AdminUserAvatar } from "../../components/admin/AdminUserAvatar";
 import { buildTopSearchChartItems, buildTopWishlistChartItems } from "../../lib/adminCharts";
+import {
+  fetchLazadaCatalogStats,
+  syncLazadaCatalog,
+  type LazadaCatalogStats,
+} from "../../lib/lazadaCatalogAdmin";
 import { ORDER_STATUS_META } from "../../lib/utils";
 
 const CARDS = [
@@ -17,6 +34,37 @@ const CARDS = [
 
 export function AdminOverviewPage() {
   const { data, error } = useAdminData();
+  const [catalogStats, setCatalogStats] = useState<LazadaCatalogStats | null>(null);
+  const [catalogError, setCatalogError] = useState("");
+  const [syncing, setSyncing] = useState(false);
+
+  async function loadCatalogStats() {
+    try {
+      setCatalogError("");
+      const stats = await fetchLazadaCatalogStats();
+      setCatalogStats(stats);
+    } catch (e) {
+      setCatalogError(e instanceof Error ? e.message : "Could not load catalog stats");
+    }
+  }
+
+  useEffect(() => {
+    void loadCatalogStats();
+  }, []);
+
+  async function handleSyncCatalog() {
+    setSyncing(true);
+    setCatalogError("");
+    try {
+      await syncLazadaCatalog();
+      await loadCatalogStats();
+    } catch (e) {
+      setCatalogError(e instanceof Error ? e.message : "Catalog sync failed");
+    } finally {
+      setSyncing(false);
+    }
+  }
+
   if (!data) return null;
 
   const counts = {
@@ -48,6 +96,47 @@ export function AdminOverviewPage() {
         }
       />
       <AdminErrorNotice message={error} />
+
+      <section className="mb-6 rounded-3xl border border-indigo-100 bg-gradient-to-br from-indigo-50 to-white p-5 shadow-sm">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h2 className="font-bold text-slate-900">Lazada product catalog</h2>
+            <p className="mt-1 text-sm text-slate-600">
+              Pull Affiliate feed into Supabase, then users search this catalog on the home page.
+            </p>
+            <p className="mt-2 text-sm text-slate-700">
+              <span className="font-semibold">{catalogStats?.product_count ?? "—"}</span> products
+              {catalogStats?.last_sync && (
+                <>
+                  {" "}
+                  · last sync{" "}
+                  <span className="font-medium capitalize">{catalogStats.last_sync.status}</span>
+                  {" "}
+                  ({catalogStats.last_sync.products_upserted} upserted
+                  {catalogStats.last_sync.finished_at
+                    ? ` · ${dateLabel(catalogStats.last_sync.finished_at)}`
+                    : ""}
+                  )
+                </>
+              )}
+            </p>
+            {(catalogError || catalogStats?.last_sync?.error_message) && (
+              <p className="mt-2 text-xs text-red-600">
+                {catalogError || catalogStats?.last_sync?.error_message}
+              </p>
+            )}
+          </div>
+          <button
+            type="button"
+            onClick={() => void handleSyncCatalog()}
+            disabled={syncing}
+            className="inline-flex items-center justify-center gap-2 rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-indigo-500 disabled:opacity-50"
+          >
+            {syncing ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+            {syncing ? "Syncing feed…" : "Sync Lazada feed"}
+          </button>
+        </div>
+      </section>
 
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6">
         {CARDS.map(({ to, label, key, icon: Icon, tone }) => (

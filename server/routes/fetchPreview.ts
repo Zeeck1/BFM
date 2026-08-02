@@ -5,11 +5,28 @@ import { Router } from "express";
 import { BFM_ERRORS } from "../bfmMessages.js";
 import { env } from "../config/env.js";
 import {
+  isLazadaAffiliateConfigured,
+  searchLazadaAffiliateFeed,
+  fetchAllLazadaProductFeedCatalog,
+  fetchLazadaProductFeedCatalog,
+  lazadaProductPageUrl,
+} from "../lazadaAffiliate.js";
+import {
+  getLazadaCatalogStats,
+  isRequestUserAdmin,
+  listLazadaCatalogPage,
+  searchLazadaCatalog,
+  syncExpandedFeedToDatabase,
+  syncLazadaProductCatalog,
+} from "../lazadaCatalog.js";
+import { splitProductCopy } from "../productCopy.js";
+import { isSupabaseAdminConfigured } from "../supabaseAdmin.js";
+import {
   fetchLazadaProductPreview,
   isLazadaProductUrl,
   searchLazadaProducts,
 } from "../lazadaProduct.js";
-import { searchSheinProducts } from "../sheinProduct.js";
+import { getTrendingProducts } from "../trendingProducts.js";
 
 export const fetchPreviewRouter = Router();
 
@@ -213,17 +230,19 @@ fetchPreviewRouter.post("/fetch-preview", async (req, res) => {
     const title = decodeHtml(pageTitle(html));
     const rawImage = meta(html, "og:image", "twitter:image", "og:image:url");
     const imageUrl = absolutify(rawImage, finalUrl);
-    const description = decodeHtml(
+    const descriptionRaw = decodeHtml(
       meta(html, "og:description", "twitter:description", "description"),
     );
     const siteName =
       decodeHtml(meta(html, "og:site_name")) || siteLabel(parsed);
     const price_thb = extractPrice(html);
+    const split = splitProductCopy(descriptionRaw, title || undefined);
 
     res.json({
       url: finalUrl,
       title: title || undefined,
-      description: description || undefined,
+      description: split.description || descriptionRaw || undefined,
+      highlights: split.highlights.length > 0 ? split.highlights : undefined,
       image_url: imageUrl || undefined,
       site_name: siteName || undefined,
       price_thb: price_thb ?? undefined,
@@ -273,11 +292,17 @@ fetchPreviewRouter.post("/lazada-search", async (req, res) => {
     return;
   }
 
-  const { results, has_more, blocked } = await searchLazadaProducts(query, page, 15);
+  const { results, has_more, blocked, quota_exceeded } = await searchLazadaProducts(
+    query,
+    page,
+    15,
+  );
 
   if (results.length === 0 && blocked) {
     res.status(503).json({
-      error: BFM_ERRORS.searchUnavailable,
+      error: quota_exceeded
+        ? BFM_ERRORS.searchQuotaExceeded
+        : BFM_ERRORS.searchUnavailable,
       blocked: true,
     });
     return;
@@ -286,15 +311,28 @@ fetchPreviewRouter.post("/lazada-search", async (req, res) => {
   res.json({ results, page, has_more });
 });
 
-fetchPreviewRouter.post("/shein-search", async (req, res) => {
-  if (!env.productSearchEnabled) {
-    res.status(503).json({ error: BFM_ERRORS.searchDisabled });
-    return;
-  }
+fetchPreviewRouter.get("/trending-products", async (req, res) => {
+  const rawLimit = req.query.limit;
+  const limit =
+    typeof rawLimit === "string"
+      ? Number.parseInt(rawLimit, 10)
+      : typeof rawLimit === "number"
+        ? rawLimit
+        : 6;
 
+  try {
+    const results = await getTrendingProducts(Number.isFinite(limit) ? limit : 6);
+    res.json({ results, limit: results.length });
+  } catch (err) {
+    console.warn("[BFM] trending-products failed:", err instanceof Error ? err.message : err);
+    res.status(503).json({ error: BFM_ERRORS.feedUnavailable, results: [] });
+  }
+});
+
+fetchPreviewRouter.post("/lazada-feed", async (req, res) => {
   const body = req.body as Record<string, unknown>;
-  const raw: unknown = body?.query;
-  const query = typeof raw === "string" ? raw.trim() : "";
+  const rawQuery = body?.query;
+  const query = typeof rawQuery === "string" ? rawQuery.trim() : "";
   const rawPage = body?.page;
   const page =
     typeof rawPage === "number"
@@ -302,11 +340,13 @@ fetchPreviewRouter.post("/shein-search", async (req, res) => {
       : typeof rawPage === "string"
         ? Number.parseInt(rawPage, 10)
         : 1;
-
-  if (!query) {
-    res.status(400).json({ error: BFM_ERRORS.searchQueryRequired });
-    return;
-  }
+  const rawLimit = body?.limit ?? body?.pageSize;
+  const limit =
+    typeof rawLimit === "number"
+      ? rawLimit
+      : typeof rawLimit === "string"
+        ? Number.parseInt(rawLimit, 10)
+        : 30;
 
   if (query.length > 120) {
     res.status(400).json({ error: BFM_ERRORS.searchQueryTooLong });
@@ -318,15 +358,333 @@ fetchPreviewRouter.post("/shein-search", async (req, res) => {
     return;
   }
 
-  const { results, has_more, blocked } = await searchSheinProducts(query, page, 15);
-
-  if (results.length === 0 && blocked) {
+  // Home search from Lazada Open API feed data.
+  // Prefer synced catalog (every product already pulled from the API).
+  // Fall back to live full-feed fetch + local productName/brandName filter.
+  // Always search live Open API feed (fetch all pages → filter).
+  // Catalog is optional acceleration only when it already has matches.
+  if (!isLazadaAffiliateConfigured() && !isSupabaseAdminConfigured()) {
     res.status(503).json({
-      error: BFM_ERRORS.searchUnavailable,
+      error: query ? BFM_ERRORS.searchUnavailable : BFM_ERRORS.feedUnavailable,
       blocked: true,
     });
     return;
   }
 
-  res.json({ results, page, has_more });
+  let response = isLazadaAffiliateConfigured()
+    ? await searchLazadaAffiliateFeed(query, page, limit)
+    : { results: [], has_more: false, matched: false, match_count: 0, feed_total: 0 };
+  let source: "catalog" | "affiliate_feed" = "affiliate_feed";
+
+  // If live feed has no keyword hits, try synced catalog as a second pass.
+  if (
+    query &&
+    response.results.length === 0 &&
+    !response.blocked &&
+    isSupabaseAdminConfigured()
+  ) {
+    const catalog = await searchLazadaCatalog(query, page, limit);
+    if (catalog.results.length > 0) {
+      response = {
+        ...response,
+        results: catalog.results,
+        has_more: catalog.has_more,
+        matched: true,
+        // Page size is not total matches; keep has_more so UI can paginate.
+        match_count: catalog.has_more
+          ? catalog.results.length + 1
+          : catalog.results.length,
+      };
+      source = "catalog";
+    }
+  }
+
+  if (response.results.length === 0 && response.blocked) {
+    res.status(503).json({
+      error: query ? BFM_ERRORS.searchUnavailable : BFM_ERRORS.feedUnavailable,
+      blocked: true,
+    });
+    return;
+  }
+
+  res.json({
+    results: response.results,
+    page,
+    has_more: response.has_more,
+    query,
+    source,
+    matched: Boolean(response.matched),
+    match_count: response.match_count ?? 0,
+    feed_total: response.feed_total ?? 0,
+    sample_brands: response.sample_brands ?? [],
+  });
+});
+
+fetchPreviewRouter.post("/lazada-feed-sync", async (req, res) => {
+  const auth = req.headers.authorization;
+  const token =
+    typeof auth === "string" && auth.startsWith("Bearer ") ? auth.slice(7).trim() : "";
+  if (!token || !(await isRequestUserAdmin(token))) {
+    res.status(403).json({ error: "Admin access required." });
+    return;
+  }
+
+  if (!isLazadaAffiliateConfigured() || !isSupabaseAdminConfigured()) {
+    res.status(503).json({ error: BFM_ERRORS.feedNotConfigured });
+    return;
+  }
+
+  const body = req.body as Record<string, unknown>;
+  const rawOfferType = body?.offerType;
+  const offerType =
+    typeof rawOfferType === "number"
+      ? rawOfferType
+      : typeof rawOfferType === "string"
+        ? Number.parseInt(rawOfferType, 10)
+        : 1;
+  const rawMax = body?.maxPages;
+  const maxPages =
+    typeof rawMax === "number"
+      ? rawMax
+      : typeof rawMax === "string"
+        ? Number.parseInt(rawMax, 10)
+        : undefined;
+
+  const result = await syncLazadaProductCatalog({
+    offerType: Number.isFinite(offerType) ? offerType : 1,
+    maxPages:
+      maxPages != null && Number.isFinite(maxPages) ? Math.floor(maxPages) : undefined,
+  });
+
+  if (!result.ok) {
+    res.status(503).json({
+      error: result.error_message || BFM_ERRORS.feedUnavailable,
+      ...result,
+    });
+    return;
+  }
+
+  res.json(result);
+});
+
+fetchPreviewRouter.get("/lazada-catalog-stats", async (req, res) => {
+  const auth = req.headers.authorization;
+  const token =
+    typeof auth === "string" && auth.startsWith("Bearer ") ? auth.slice(7).trim() : "";
+  if (!token || !(await isRequestUserAdmin(token))) {
+    res.status(403).json({ error: "Admin access required." });
+    return;
+  }
+
+  const stats = await getLazadaCatalogStats();
+  res.json(stats);
+});
+
+/**
+ * Paginated Feed catalog from Supabase (lean rows).
+ * Query: ?q=&page=1&limit=24
+ * Optional ?sync=1 to re-sync expanded feed into DB (admin/heavy).
+ */
+fetchPreviewRouter.get("/lazada-feed-catalog", async (req, res) => {
+  const wantSync = req.query.sync === "1" || req.query.sync === "true";
+  if (wantSync) {
+    if (!isLazadaAffiliateConfigured() || !isSupabaseAdminConfigured()) {
+      res.status(503).json({ error: BFM_ERRORS.feedNotConfigured, products: [], total: 0 });
+      return;
+    }
+    const sync = await syncExpandedFeedToDatabase();
+    if (!sync.ok) {
+      res.status(503).json({
+        error: sync.error_message || BFM_ERRORS.feedUnavailable,
+        products: [],
+        total: 0,
+      });
+      return;
+    }
+  }
+
+  const rawQuery = req.query.q ?? req.query.query;
+  const query = typeof rawQuery === "string" ? rawQuery.trim() : "";
+  const rawPage = req.query.page;
+  const page =
+    typeof rawPage === "string"
+      ? Number.parseInt(rawPage, 10)
+      : typeof rawPage === "number"
+        ? rawPage
+        : 1;
+  const rawLimit = req.query.limit;
+  const limit =
+    typeof rawLimit === "string"
+      ? Number.parseInt(rawLimit, 10)
+      : typeof rawLimit === "number"
+        ? rawLimit
+        : 24;
+
+  if (query.length > 120) {
+    res.status(400).json({ error: BFM_ERRORS.searchQueryTooLong, products: [], total: 0 });
+    return;
+  }
+  if (!Number.isFinite(page) || page < 1 || page > 500) {
+    res.status(400).json({ error: BFM_ERRORS.searchPageInvalid, products: [], total: 0 });
+    return;
+  }
+
+  try {
+    let list = await listLazadaCatalogPage(query, page, limit);
+
+    // Cold start: DB empty but affiliate configured → sync once then re-query.
+    if (
+      list.total === 0 &&
+      !list.blocked &&
+      !wantSync &&
+      isLazadaAffiliateConfigured() &&
+      isSupabaseAdminConfigured()
+    ) {
+      const sync = await syncExpandedFeedToDatabase();
+      if (sync.ok && sync.products_upserted > 0) {
+        list = await listLazadaCatalogPage(query, page, limit);
+      }
+    }
+
+    if (list.blocked && list.total === 0) {
+      res.status(503).json({
+        error: BFM_ERRORS.feedUnavailable,
+        products: [],
+        total: 0,
+      });
+      return;
+    }
+
+    const stats = await getLazadaCatalogStats();
+    res.json({
+      source: list.source,
+      page: list.page,
+      page_size: list.page_size,
+      total: list.total,
+      has_more: list.has_more,
+      query,
+      products: list.products,
+      catalog_total: stats.product_count,
+      last_sync: stats.last_sync,
+      live_sync_minutes: env.lazadaFeedLiveSyncMinutes,
+    });
+  } catch (err) {
+    console.warn("[BFM] lazada-feed-catalog failed:", err instanceof Error ? err.message : err);
+    res.status(503).json({ error: BFM_ERRORS.feedUnavailable, products: [], total: 0 });
+  }
+});
+
+fetchPreviewRouter.get("/lazada-feed-sample", async (req, res) => {
+  if (!isLazadaAffiliateConfigured()) {
+    res.status(503).json({ error: BFM_ERRORS.feedNotConfigured, products: [] });
+    return;
+  }
+
+  const rawOffer = req.query.offerType;
+  const offerType =
+    typeof rawOffer === "string"
+      ? Number.parseInt(rawOffer, 10)
+      : typeof rawOffer === "number"
+        ? rawOffer
+        : 1;
+  const wantAll =
+    req.query.all === "1" ||
+    req.query.all === "true" ||
+    req.query.all === undefined; // sample page defaults to all
+
+  const mapRow = (row: {
+    product_id: string;
+    title: string;
+    image_url: string | null;
+    price_thb: number | null;
+    shop_name: string | null;
+    brand_name: string | null;
+    category_l1: number | null;
+    sold_count: number | null;
+    stock: number | null;
+    out_of_stock: boolean;
+    offer_type: number;
+    currency: string | null;
+    product_url: string;
+    raw: Record<string, unknown>;
+  }) => ({
+    product_id: row.product_id,
+    product_page_url: lazadaProductPageUrl(row.product_id),
+    title: row.title,
+    image_url: row.image_url,
+    price_thb: row.price_thb,
+    shop_name: row.shop_name,
+    brand_name: row.brand_name,
+    category_l1: row.category_l1,
+    sold_count: row.sold_count,
+    stock: row.stock,
+    out_of_stock: row.out_of_stock,
+    offer_type: row.offer_type,
+    currency: row.currency,
+    product_url: row.product_url,
+    api_raw: row.raw,
+  });
+
+  if (wantAll) {
+    const feed = await fetchAllLazadaProductFeedCatalog({
+      offerType: Number.isFinite(offerType) ? offerType : 1,
+      pageSize: 40,
+    });
+
+    if (feed.blocked && feed.rows.length === 0) {
+      res.status(503).json({ error: BFM_ERRORS.feedUnavailable, products: [] });
+      return;
+    }
+
+    res.json({
+      all: true,
+      offer_type: Number.isFinite(offerType) ? offerType : 1,
+      pages_fetched: feed.pages_fetched,
+      has_more: false,
+      count: feed.rows.length,
+      products: feed.rows.map(mapRow),
+    });
+    return;
+  }
+
+  const rawPage = req.query.page;
+  const page =
+    typeof rawPage === "string"
+      ? Number.parseInt(rawPage, 10)
+      : typeof rawPage === "number"
+        ? rawPage
+        : 1;
+  const rawLimit = req.query.limit;
+  const limit =
+    typeof rawLimit === "string"
+      ? Number.parseInt(rawLimit, 10)
+      : typeof rawLimit === "number"
+        ? rawLimit
+        : 40;
+
+  if (!Number.isFinite(page) || page < 1 || page > 100) {
+    res.status(400).json({ error: BFM_ERRORS.searchPageInvalid });
+    return;
+  }
+
+  const feed = await fetchLazadaProductFeedCatalog({
+    page: Number.isFinite(page) ? page : 1,
+    limit: Number.isFinite(limit) ? Math.min(Math.max(limit, 1), 40) : 40,
+    offerType: Number.isFinite(offerType) ? offerType : 1,
+  });
+
+  if (feed.blocked && feed.rows.length === 0) {
+    res.status(503).json({ error: BFM_ERRORS.feedUnavailable, products: [] });
+    return;
+  }
+
+  res.json({
+    all: false,
+    page: Number.isFinite(page) && page > 0 ? Math.floor(page) : 1,
+    limit: Number.isFinite(limit) ? Math.min(Math.max(Math.floor(limit), 1), 40) : 40,
+    offer_type: Number.isFinite(offerType) ? offerType : 1,
+    has_more: feed.has_more,
+    count: feed.rows.length,
+    products: feed.rows.map(mapRow),
+  });
 });
