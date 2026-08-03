@@ -7,10 +7,11 @@ export const AFFILIATE_SEARCH_ENABLED =
 
 /**
  * Smart Search — Lazada marketplace results via RapidAPI.
- * Requires PRODUCT_SEARCH_ENABLED + RAPIDAPI_KEY on the server.
+ * On by default so production shows the tab; set VITE_PRODUCT_SEARCH_ENABLED=false to hide.
+ * Server still needs PRODUCT_SEARCH_ENABLED + RAPIDAPI_KEY for results.
  */
 export const SMART_SEARCH_ENABLED =
-  import.meta.env.VITE_PRODUCT_SEARCH_ENABLED === "true";
+  import.meta.env.VITE_PRODUCT_SEARCH_ENABLED !== "false";
 
 /** @deprecated use AFFILIATE_SEARCH_ENABLED */
 export const LAZADA_FEED_ENABLED = AFFILIATE_SEARCH_ENABLED;

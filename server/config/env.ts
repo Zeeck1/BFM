@@ -20,8 +20,14 @@ export const env = {
   /** RapidAPI host for Lazada search */
   rapidApiLazadaHost:
     process.env.RAPIDAPI_LAZADA_HOST?.trim() || "lazada-api.p.rapidapi.com",
-  /** Lazada keyword search via RapidAPI — set PRODUCT_SEARCH_ENABLED=true to enable */
-  productSearchEnabled: process.env.PRODUCT_SEARCH_ENABLED === "true",
+  /**
+   * Lazada keyword search via RapidAPI.
+   * On by default when RAPIDAPI_KEY is set; set PRODUCT_SEARCH_ENABLED=false to disable.
+   */
+  productSearchEnabled:
+    process.env.PRODUCT_SEARCH_ENABLED === "true" ||
+    (process.env.PRODUCT_SEARCH_ENABLED !== "false" &&
+      Boolean(process.env.RAPIDAPI_KEY?.trim())),
   /** Lazada Affiliate Open API (LiteApp Key) */
   lazadaAffiliateAppKey: process.env.LAZADA_AFFILIATE_APP_KEY?.trim() ?? "",
   /** Lazada Affiliate Open API (LiteApp Secret) */
