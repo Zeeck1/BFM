@@ -37,6 +37,8 @@ export interface LazadaSearchResponse {
   blocked?: boolean;
   /** Monthly/plan quota exceeded on the search provider. */
   quota_exceeded?: boolean;
+  /** Search backend — Smart Search uses RapidAPI only. */
+  source?: "rapidapi";
 }
 
 export function isLazadaProductUrl(raw: string): boolean {
@@ -486,70 +488,8 @@ function readSearchListItems(payload: string): unknown[] {
   }
 }
 
-function normalizeSearchItem(item: unknown): LazadaSearchResult | null {
-  if (!item || typeof item !== "object") return null;
-
-  const record = item as Record<string, unknown>;
-  const rawUrl =
-    pickString(record.itemUrl) ||
-    pickString(record.productUrl) ||
-    pickString(record.url);
-  const url = absoluteLazadaUrl(rawUrl);
-  if (!url) return null;
-
-  const title =
-    pickString(record.name) ||
-    pickString(record.title) ||
-    pickString(record.productName);
-  if (!title) return null;
-
-  const image_url = absoluteLazadaUrl(
-    pickImage(record.image) ||
-      pickImage(record.imageUrl) ||
-      pickImage(record.img) ||
-      pickImage(record.productImage),
-  );
-
-  const price_thb =
-    pickNumber(record.price) ||
-    pickNumber(record.priceShow) ||
-    pickNumber(record.salePrice) ||
-    pickNumber(record.discountPrice);
-
-  const sold_count =
-    pickSoldCount(record.sold_count) ||
-    pickSoldCount(record.soldCount) ||
-    pickSoldCount(record.item_sold) ||
-    pickSoldCount(record.sales);
-  const shopInfo = asRecord(record.shop_info) ?? asRecord(record.shopInfo);
-  const reviewInfo = asRecord(record.review_info) ?? asRecord(record.reviewInfo);
-  const shop_name =
-    pickString(shopInfo?.shop_name) ||
-    pickString(shopInfo?.shopName) ||
-    pickString(shopInfo?.seller_name) ||
-    pickString(record.shop_name) ||
-    pickString(record.sellerName);
-  const review_count =
-    pickSoldCount(reviewInfo?.review_count) ||
-    pickSoldCount(record.review_count) ||
-    pickSoldCount(record.comment_count);
-  const average_score =
-    pickAverageScore(reviewInfo?.average_score) ||
-    pickAverageScore(record.average_score) ||
-    pickAverageScore(record.rating);
-
-  return {
-    source_id: pickString(record.nid) || pickString(record.itemId) || pickString(record.skuId),
-    url,
-    title: decodeHtml(title),
-    image_url,
-    price_thb,
-    sold_count,
-    shop_name,
-    review_count,
-    average_score,
-    site_name: "Lazada",
-  };
+function asRecord(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === "object" ? (value as Record<string, unknown>) : null;
 }
 
 function uniqueSearchResults(results: LazadaSearchResult[]): LazadaSearchResult[] {
@@ -560,10 +500,6 @@ function uniqueSearchResults(results: LazadaSearchResult[]): LazadaSearchResult[
     seen.add(key);
     return true;
   });
-}
-
-function asRecord(value: unknown): Record<string, unknown> | null {
-  return value && typeof value === "object" ? (value as Record<string, unknown>) : null;
 }
 
 function extractRapidApiItems(payload: unknown): unknown[] {
@@ -675,13 +611,15 @@ function normalizeRapidApiItem(item: unknown): LazadaSearchResult | null {
   };
 }
 
-/** Fast Lazada search via RapidAPI (TMAPI Lazada API). */
+/** Smart Search via RapidAPI (TMAPI Lazada API). */
 async function searchViaRapidApi(
   query: string,
   page: number,
   pageSize: number,
-): Promise<LazadaSearchResponse | null> {
-  if (!env.rapidApiKey) return null;
+): Promise<LazadaSearchResponse> {
+  if (!env.rapidApiKey) {
+    return { results: [], has_more: false, blocked: true, source: "rapidapi" };
+  }
 
   const url = new URL(`https://${env.rapidApiLazadaHost}/lazada/search/items`);
   url.searchParams.set("keywords", query);
@@ -716,8 +654,11 @@ async function searchViaRapidApi(
       .filter((item): item is LazadaSearchResult => item !== null),
   ).slice(0, pageSize);
 
-  if (results.length === 0) return { results: [], has_more: false };
-  return { results, has_more: results.length >= pageSize };
+  return {
+    results,
+    has_more: results.length >= pageSize,
+    source: "rapidapi",
+  };
 }
 
 export async function searchLazadaProducts(
@@ -728,24 +669,35 @@ export async function searchLazadaProducts(
   const cleaned = query.trim();
   if (!cleaned) return { results: [], has_more: false };
   const safePage = Number.isFinite(page) && page > 0 ? Math.floor(page) : 1;
-  const safePageSize = Number.isFinite(pageSize) ? Math.min(Math.max(Math.floor(pageSize), 1), 40) : 15;
+  const safePageSize = Number.isFinite(pageSize)
+    ? Math.min(Math.max(Math.floor(pageSize), 1), 40)
+    : 15;
 
   const cacheKey = `${cleaned.toLowerCase()}::${safePage}::${safePageSize}`;
   const cached = getCachedSearch(cacheKey);
-  if (cached) return cached;
+  if (cached?.results.length) {
+    return { ...cached, source: "rapidapi" };
+  }
 
+  // Smart Search: RapidAPI only (no site scraper).
   if (!env.rapidApiKey) {
-    console.warn("[BFM] RAPIDAPI_KEY is not set — Lazada search disabled");
-    return { results: [], has_more: false, blocked: true };
+    console.warn("[BFM] Smart Search requires RAPIDAPI_KEY");
+    return { results: [], has_more: false, blocked: true, source: "rapidapi" };
   }
 
   try {
     const rapid = await searchViaRapidApi(cleaned, safePage, safePageSize);
-    if (rapid && rapid.results.length > 0) {
+    if (rapid.results.length > 0) {
       setCachedSearch(cacheKey, rapid);
-      return rapid;
+      console.log(
+        `[BFM] Smart Search source=rapidapi query="${cleaned}" page=${safePage} n=${rapid.results.length}`,
+      );
+    } else {
+      console.warn(
+        `[BFM] RapidAPI returned 0 results for "${cleaned}" page=${safePage}`,
+      );
     }
-    return rapid ?? { results: [], has_more: false };
+    return rapid;
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     console.warn("[BFM] RapidAPI Lazada search failed:", err);
@@ -755,6 +707,7 @@ export async function searchLazadaProducts(
       has_more: false,
       blocked: true,
       quota_exceeded: quota,
+      source: "rapidapi",
     };
   }
 }

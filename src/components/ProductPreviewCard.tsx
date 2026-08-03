@@ -2,7 +2,10 @@ import { useState } from "react";
 import { Link } from "react-router-dom";
 import { BookmarkCheck, BookmarkPlus, ExternalLink, Loader2 } from "lucide-react";
 import { formatTHB } from "../lib/utils";
-import { saveLinkSearchScroll } from "../lib/lazadaFeedCache";
+import {
+  saveLinkSearchScroll,
+  type LinkSearchMode,
+} from "../lib/lazadaFeedCache";
 import type { ProductPreview } from "../types";
 import { ImageLightbox } from "./ImageLightbox";
 import { SiteAvatar } from "./SiteAvatar";
@@ -14,6 +17,7 @@ interface ProductPreviewCardProps {
   saved: boolean;
   loggedIn: boolean;
   onSignIn: () => void;
+  searchMode?: LinkSearchMode;
 }
 
 export function ProductPreviewCard({
@@ -23,6 +27,7 @@ export function ProductPreviewCard({
   saved,
   loggedIn,
   onSignIn,
+  searchMode = "affiliate",
 }: ProductPreviewCardProps) {
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const [imgError, setImgError] = useState(false);
@@ -58,8 +63,8 @@ export function ProductPreviewCard({
           )}
           <Link
             to={`/product-detail?url=${encodeURIComponent(preview.url)}`}
-            state={{ product: preview, from: "/" }}
-            onClick={() => saveLinkSearchScroll(window.scrollY, preview.url)}
+            state={{ product: preview, from: "/", searchMode }}
+            onClick={() => saveLinkSearchScroll(window.scrollY, preview.url, searchMode)}
             className="line-clamp-3 block text-base font-semibold leading-snug text-slate-900 transition hover:text-indigo-600"
           >
             {preview.title ?? preview.url}

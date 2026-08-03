@@ -4,7 +4,7 @@ export const BFM_ERRORS = {
   searchDisabled:
     "Product search is temporarily unavailable on BFM. Please paste a product link instead.",
   searchUnavailable:
-    "BFM couldn't complete this search right now. Please try again in a moment, or paste a product link.",
+    "BFM couldn't reach Lazada search right now. Please try again in a moment, or paste a product link.",
   searchQuotaExceeded:
     "BFM search is temporarily limited. Please try again later, or paste a product link.",
   searchFailed: "BFM couldn't search products right now. Please try again.",

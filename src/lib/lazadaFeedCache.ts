@@ -1,8 +1,9 @@
 import type { ProductSearchResult } from "../types";
 
 const LAST_FEED_KEY = "bfm_lazada_feed_last";
-const SCROLL_KEY = "bfm_link_search_scroll";
 const LAST_FEED_TTL_MS = 24 * 60 * 60_000; // 24 hours
+
+export type LinkSearchMode = "affiliate" | "smart";
 
 export interface LazadaFeedLastSession {
   version: 1;
@@ -16,10 +17,18 @@ export interface LazadaFeedLastSession {
 export interface LinkSearchScrollState {
   y: number;
   productUrl?: string;
+  mode?: LinkSearchMode;
 }
 
-/** Survives React Strict Mode double-mount in dev. */
-let memoryScroll: LinkSearchScrollState | null = null;
+/** Survives React Strict Mode double-mount in dev — keyed by search mode. */
+const memoryScrollByMode: Record<LinkSearchMode, LinkSearchScrollState | null> = {
+  affiliate: null,
+  smart: null,
+};
+
+function scrollStorageKey(mode: LinkSearchMode): string {
+  return `bfm_link_search_scroll_${mode}`;
+}
 
 function readJson<T>(key: string): T | null {
   try {
@@ -80,43 +89,65 @@ export function clearLastLazadaFeedSession(): void {
   } catch {
     /* ignore */
   }
-  clearLinkSearchScroll();
+  clearLinkSearchScroll("affiliate");
 }
 
-/** Save home-page scroll before navigating to product detail. */
+/** Save Add Link scroll before navigating to product detail (mode-scoped). */
 export function saveLinkSearchScroll(
   y = typeof window !== "undefined" ? window.scrollY : 0,
   productUrl?: string,
+  mode: LinkSearchMode = "affiliate",
 ): void {
   const state: LinkSearchScrollState = {
     y: Math.max(0, Math.round(y)),
     productUrl: productUrl?.trim() || undefined,
+    mode,
   };
-  memoryScroll = state;
+  memoryScrollByMode[mode] = state;
   try {
-    sessionStorage.setItem(SCROLL_KEY, JSON.stringify(state));
+    sessionStorage.setItem(scrollStorageKey(mode), JSON.stringify(state));
+    // Migrate away from legacy shared key
+    sessionStorage.removeItem("bfm_link_search_scroll");
   } catch {
     /* ignore */
   }
 }
 
-/** Read saved scroll without clearing (safe with React Strict Mode). */
-export function loadLinkSearchScroll(): LinkSearchScrollState | null {
-  if (memoryScroll) return memoryScroll;
+/** Read saved scroll for one search mode without clearing. */
+export function loadLinkSearchScroll(mode: LinkSearchMode): LinkSearchScrollState | null {
+  if (memoryScrollByMode[mode]) return memoryScrollByMode[mode];
   try {
-    const raw = sessionStorage.getItem(SCROLL_KEY);
-    if (!raw) return null;
+    const raw = sessionStorage.getItem(scrollStorageKey(mode));
+    if (!raw) {
+      // Back-compat: legacy shared key only applies when reading affiliate
+      if (mode === "affiliate") {
+        const legacy = sessionStorage.getItem("bfm_link_search_scroll");
+        if (legacy) {
+          const parsed = JSON.parse(legacy) as LinkSearchScrollState | number;
+          if (typeof parsed === "number" && Number.isFinite(parsed) && parsed >= 0) {
+            return { y: parsed, mode: "affiliate" };
+          }
+          if (
+            parsed &&
+            typeof parsed === "object" &&
+            typeof (parsed as LinkSearchScrollState).y === "number"
+          ) {
+            return { ...(parsed as LinkSearchScrollState), mode: "affiliate" };
+          }
+        }
+      }
+      return null;
+    }
     const parsed = JSON.parse(raw) as LinkSearchScrollState | number;
-    // Back-compat: older builds stored a bare number
     if (typeof parsed === "number" && Number.isFinite(parsed) && parsed >= 0) {
-      return { y: parsed };
+      return { y: parsed, mode };
     }
     if (
       parsed &&
       typeof parsed === "object" &&
       typeof (parsed as LinkSearchScrollState).y === "number"
     ) {
-      return parsed as LinkSearchScrollState;
+      return { ...(parsed as LinkSearchScrollState), mode };
     }
     return null;
   } catch {
@@ -124,18 +155,29 @@ export function loadLinkSearchScroll(): LinkSearchScrollState | null {
   }
 }
 
-export function clearLinkSearchScroll(): void {
-  memoryScroll = null;
-  try {
-    sessionStorage.removeItem(SCROLL_KEY);
-  } catch {
-    /* ignore */
+/** Clear scroll for one mode, or both when omitted. */
+export function clearLinkSearchScroll(mode?: LinkSearchMode): void {
+  const modes: LinkSearchMode[] = mode ? [mode] : ["affiliate", "smart"];
+  for (const m of modes) {
+    memoryScrollByMode[m] = null;
+    try {
+      sessionStorage.removeItem(scrollStorageKey(m));
+    } catch {
+      /* ignore */
+    }
+  }
+  if (!mode) {
+    try {
+      sessionStorage.removeItem("bfm_link_search_scroll");
+    } catch {
+      /* ignore */
+    }
   }
 }
 
 /** @deprecated use loadLinkSearchScroll + clearLinkSearchScroll */
 export function takeLinkSearchScroll(): number | null {
-  const state = loadLinkSearchScroll();
-  clearLinkSearchScroll();
+  const state = loadLinkSearchScroll("affiliate");
+  clearLinkSearchScroll("affiliate");
   return state?.y ?? null;
 }

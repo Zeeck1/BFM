@@ -292,11 +292,8 @@ fetchPreviewRouter.post("/lazada-search", async (req, res) => {
     return;
   }
 
-  const { results, has_more, blocked, quota_exceeded } = await searchLazadaProducts(
-    query,
-    page,
-    15,
-  );
+  const { results, has_more, blocked, quota_exceeded, source } =
+    await searchLazadaProducts(query, page, 15);
 
   if (results.length === 0 && blocked) {
     res.status(503).json({
@@ -308,7 +305,7 @@ fetchPreviewRouter.post("/lazada-search", async (req, res) => {
     return;
   }
 
-  res.json({ results, page, has_more });
+  res.json({ results, page, has_more, source: source ?? "rapidapi" });
 });
 
 fetchPreviewRouter.get("/trending-products", async (req, res) => {

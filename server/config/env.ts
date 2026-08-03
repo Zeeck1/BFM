@@ -15,12 +15,12 @@ export const env = {
    *   https://api.scrapingant.com/v2/general?x-api-key=KEY&url={url}
    */
   lazadaProxyUrl: process.env.LAZADA_PROXY_URL?.trim() ?? "",
-  /** RapidAPI key for Lazada product search */
+  /** RapidAPI key for Smart Search (Lazada keyword search) */
   rapidApiKey: process.env.RAPIDAPI_KEY?.trim() ?? "",
   /** RapidAPI host for Lazada search */
   rapidApiLazadaHost:
     process.env.RAPIDAPI_LAZADA_HOST?.trim() || "lazada-api.p.rapidapi.com",
-  /** Lazada keyword search — set PRODUCT_SEARCH_ENABLED=true to enable */
+  /** Lazada keyword search via RapidAPI — set PRODUCT_SEARCH_ENABLED=true to enable */
   productSearchEnabled: process.env.PRODUCT_SEARCH_ENABLED === "true",
   /** Lazada Affiliate Open API (LiteApp Key) */
   lazadaAffiliateAppKey: process.env.LAZADA_AFFILIATE_APP_KEY?.trim() ?? "",

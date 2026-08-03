@@ -157,6 +157,16 @@ export async function searchLazadaSite(
     return { results: [], has_more: false, blocked: true };
   }
 
+  // Soft bot-check: Lazada returns JSON with FAIL_SYS_USER_VALIDATE + captcha URL
+  // instead of mods.listItems (still HTTP 200).
+  if (isLazadaBotChallenge(payload, text)) {
+    console.warn(
+      "[BFM] Lazada site search bot-check (FAIL_SYS_USER_VALIDATE / captcha). " +
+        "Set LAZADA_COOKIE from a browser session and/or LAZADA_PROXY_URL.",
+    );
+    return { results: [], has_more: false, blocked: true };
+  }
+
   const mods = asRecord(asRecord(payload)?.mods);
   const listItems = mods?.listItems;
   const items = Array.isArray(listItems) ? listItems : [];
@@ -170,4 +180,26 @@ export async function searchLazadaSite(
     results,
     has_more: items.length >= safeSize,
   };
+}
+
+function isLazadaBotChallenge(payload: unknown, rawText: string): boolean {
+  if (/_____tmd_____|punish|x5secdata|captcharecaptcha|FAIL_SYS_USER_VALIDATE/i.test(rawText)) {
+    return true;
+  }
+  const root = asRecord(payload);
+  if (!root) return false;
+
+  const ret = root.ret;
+  if (Array.isArray(ret) && ret.some((v) => /FAIL_SYS|USER_VALIDATE|SM::/i.test(String(v)))) {
+    return true;
+  }
+
+  const data = asRecord(root.data);
+  const challengeUrl = pickString(data?.url, root.url);
+  if (/_____tmd_____|punish|captcha/i.test(challengeUrl)) return true;
+
+  // Valid catalog JSON always includes mods; challenge payloads do not.
+  if (!asRecord(root.mods) && (root.ret != null || data?.url)) return true;
+
+  return false;
 }

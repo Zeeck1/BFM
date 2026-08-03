@@ -1,5 +1,6 @@
 import type { ProductSearchResult } from "../types";
 import type { LazadaSearchPage } from "./lazadaSearch";
+import { clearLinkSearchScroll } from "./lazadaFeedCache";
 
 const LAST_SEARCH_KEY = "bfm_lazada_last_search";
 const PAGE_CACHE_KEY = "bfm_lazada_search_pages";
@@ -99,4 +100,5 @@ export function clearLastLazadaSearch(): void {
   } catch {
     /* ignore */
   }
+  clearLinkSearchScroll("smart");
 }

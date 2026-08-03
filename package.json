@@ -12,7 +12,8 @@
     "start": "node dist-server/index.js",
     "preview": "vite preview",
     "supabase": "supabase",
-    "supabase:link": "supabase link --project-ref gqvtrhtfjtebnjbcrpqy"
+    "supabase:link": "supabase link --project-ref gqvtrhtfjtebnjbcrpqy",
+    "test:lazada-seller": "tsx scripts/test-lazada-seller-products.ts"
   },
   "devDependencies": {
     "@types/cors": "^2.8.17",

@@ -6,7 +6,7 @@ export const AFFILIATE_SEARCH_ENABLED =
   import.meta.env.VITE_AFFILIATE_SEARCH_ENABLED !== "false";
 
 /**
- * Smart Search — Lazada marketplace-style results via RapidAPI.
+ * Smart Search — Lazada marketplace results via RapidAPI.
  * Requires PRODUCT_SEARCH_ENABLED + RAPIDAPI_KEY on the server.
  */
 export const SMART_SEARCH_ENABLED =

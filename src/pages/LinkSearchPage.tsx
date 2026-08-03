@@ -49,6 +49,7 @@ import {
   loadLinkSearchScroll,
   saveLastLazadaFeedSession,
   saveLinkSearchScroll,
+  type LinkSearchMode,
   type LinkSearchScrollState,
 } from "../lib/lazadaFeedCache";
 import { fetchPreview } from "../lib/preview";
@@ -138,6 +139,7 @@ interface SearchResultCardProps {
   loggedIn: boolean;
   onSignIn: () => void;
   highlighted?: boolean;
+  searchMode: LinkSearchMode;
 }
 
 function SearchResultCard({
@@ -149,6 +151,7 @@ function SearchResultCard({
   loggedIn,
   onSignIn,
   highlighted = false,
+  searchMode,
 }: SearchResultCardProps) {
   const [imgError, setImgError] = useState(false);
   const [lightboxOpen, setLightboxOpen] = useState(false);
@@ -202,8 +205,8 @@ function SearchResultCard({
           </div>
           <Link
             to={`/product-detail?url=${encodeURIComponent(result.url)}`}
-            state={{ product: result, from: "/" }}
-            onClick={() => saveLinkSearchScroll(window.scrollY, result.url)}
+            state={{ product: result, from: "/", searchMode }}
+            onClick={() => saveLinkSearchScroll(window.scrollY, result.url, searchMode)}
             className="line-clamp-2 block h-9 shrink-0 overflow-hidden text-xs font-semibold leading-[1.125rem] text-slate-900 transition hover:text-indigo-600 sm:h-10 sm:text-sm sm:leading-5"
           >
             {result.title ?? result.url}
@@ -388,17 +391,60 @@ export function LinkSearchPage() {
     setFeedTotal(0);
   }
 
+  function applyAffiliateSession(session: {
+    query: string;
+    page: number;
+    hasMore: boolean;
+    results: ProductSearchResult[];
+  }) {
+    setSearchMode("affiliate");
+    setUrl(session.query);
+    setSearchResults(session.results.slice(0, AFFILIATE_SEARCH_PAGE_SIZE));
+    setSearchPage(session.page);
+    setSearchHasMore(session.hasMore);
+    setSearchState("done");
+    setSearchError("");
+    setFeedMatched(session.results.length > 0);
+    setFeedMatchCount(session.results.length);
+    setFeedTotal(0);
+    setFetchState("idle");
+    setPreview(null);
+    setFetchError("");
+  }
+
   function switchSearchMode(mode: SearchMode) {
     if (mode === searchMode) return;
     if (mode === "smart" && !SMART_SEARCH_ENABLED) return;
     if (mode === "affiliate" && !AFFILIATE_SEARCH_ENABLED) return;
+
     setSearchMode(mode);
-    clearSearchResults();
     setPreview(null);
     setFetchState("idle");
     setFetchError("");
-    clearLinkSearchScroll();
     setHighlightProductUrl(null);
+    restoreScrollRef.current = false;
+    pendingScrollRef.current = null;
+
+    // Keep each mode's session/scroll isolated — reload that mode's own cache.
+    if (mode === "affiliate") {
+      const cached = loadLastLazadaFeedSession();
+      if (cached?.query.trim() && cached.results.length > 0) {
+        applyAffiliateSession(cached);
+        return;
+      }
+      clearSearchResults();
+      setUrl("");
+      return;
+    }
+
+    const smart = loadLastLazadaSearch();
+    if (smart && smart.results.length > 0) {
+      applyCachedSearch(smart);
+      setSearchMode("smart");
+      return;
+    }
+    clearSearchResults();
+    setUrl("");
   }
 
   async function runAffiliateSearch(page = 1, query = "") {
@@ -410,7 +456,7 @@ export function LinkSearchPage() {
 
     restoreScrollRef.current = false;
     pendingScrollRef.current = null;
-    clearLinkSearchScroll();
+    clearLinkSearchScroll("affiliate");
     setHighlightProductUrl(null);
     setSearchError("");
     setSearchPage(page);
@@ -442,34 +488,45 @@ export function LinkSearchPage() {
     }
   }
 
-  // Restore last Affiliate keyword search + scroll when returning from product detail.
+  // Restore the mode we left from (scroll wins), keeping Affiliate and Smart sessions separate.
   useEffect(() => {
-    if (!AFFILIATE_SEARCH_ENABLED) return;
+    const affiliateScroll = AFFILIATE_SEARCH_ENABLED
+      ? loadLinkSearchScroll("affiliate")
+      : null;
+    const smartScroll = SMART_SEARCH_ENABLED ? loadLinkSearchScroll("smart") : null;
+    const affiliateSession = AFFILIATE_SEARCH_ENABLED
+      ? loadLastLazadaFeedSession()
+      : null;
+    const smartSession = SMART_SEARCH_ENABLED ? loadLastLazadaSearch() : null;
 
-    const cached = loadLastLazadaFeedSession();
-    const savedScroll = loadLinkSearchScroll();
-    const hasKeywordSearch = Boolean(cached?.query.trim());
-    const returningToResults = Boolean(savedScroll && cached);
+    const restoreAffiliate = (scroll: LinkSearchScrollState | null) => {
+      if (!affiliateSession?.results.length) return false;
+      restoreScrollRef.current = Boolean(scroll);
+      pendingScrollRef.current = scroll;
+      applyAffiliateSession(affiliateSession);
+      return true;
+    };
 
-    if (cached && (hasKeywordSearch || returningToResults)) {
-      restoreScrollRef.current = Boolean(savedScroll);
-      pendingScrollRef.current = savedScroll;
-      setSearchMode("affiliate");
-      setUrl(cached.query);
-      setSearchResults(cached.results.slice(0, AFFILIATE_SEARCH_PAGE_SIZE));
-      setSearchPage(cached.page);
-      setSearchHasMore(cached.hasMore);
-      setSearchState("done");
-      setSearchError("");
-      setFetchState("idle");
-      setPreview(null);
-      setFetchError("");
-      return;
-    }
+    const restoreSmart = (scroll: LinkSearchScrollState | null) => {
+      if (!smartSession?.results.length) return false;
+      restoreScrollRef.current = Boolean(scroll);
+      pendingScrollRef.current = scroll;
+      applyCachedSearch(smartSession);
+      setSearchMode("smart");
+      return true;
+    };
 
-    if (cached && !hasKeywordSearch) {
-      clearLastLazadaFeedSession();
-    }
+    // Returning from product detail: prefer the mode that saved a product scroll.
+    if (smartScroll?.productUrl && restoreSmart(smartScroll)) return;
+    if (affiliateScroll?.productUrl && restoreAffiliate(affiliateScroll)) return;
+    if (smartScroll && restoreSmart(smartScroll)) return;
+    if (affiliateScroll && restoreAffiliate(affiliateScroll)) return;
+
+    // Soft restore last session for the default tab (no cross-mode bleed).
+    if (defaultMode === "smart" && restoreSmart(null)) return;
+    if (defaultMode === "affiliate" && restoreAffiliate(null)) return;
+    if (restoreSmart(null)) return;
+    restoreAffiliate(null);
   }, []);
 
   // After restored results paint, smoothly scroll back to the opened product
@@ -482,6 +539,9 @@ export function LinkSearchPage() {
       restoreScrollRef.current = false;
       return;
     }
+
+    const mode: LinkSearchMode =
+      pending.mode ?? (affiliateMode ? "affiliate" : "smart");
 
     let cancelled = false;
     const timer = window.setTimeout(() => {
@@ -497,7 +557,7 @@ export function LinkSearchPage() {
         }
         restoreScrollRef.current = false;
         pendingScrollRef.current = null;
-        clearLinkSearchScroll();
+        clearLinkSearchScroll(mode);
       })();
     }, 80);
 
@@ -505,32 +565,23 @@ export function LinkSearchPage() {
       cancelled = true;
       window.clearTimeout(timer);
     };
-  }, [searchState, searchResults]);
+  }, [searchState, searchResults, affiliateMode]);
 
   // Save scroll when leaving the home page (browser back/forward or in-app nav)
   useEffect(() => {
+    const mode: LinkSearchMode = searchMode;
     const persist = () => {
       // Don't overwrite a product-click scroll with a stale/zero value during unmount races.
-      const existing = loadLinkSearchScroll();
+      const existing = loadLinkSearchScroll(mode);
       if (existing?.productUrl) return;
-      saveLinkSearchScroll(window.scrollY);
+      saveLinkSearchScroll(window.scrollY, undefined, mode);
     };
     window.addEventListener("pagehide", persist);
     return () => {
       persist();
       window.removeEventListener("pagehide", persist);
     };
-  }, []);
-
-  // Restore the most recent Lazada keyword search when returning to the page
-  useEffect(() => {
-    if (!SMART_SEARCH_ENABLED) return;
-
-    const lazada = loadLastLazadaSearch();
-    if (lazada && lazada.results.length > 0) {
-      applyCachedSearch(lazada);
-    }
-  }, []);
+  }, [searchMode]);
 
   useEffect(() => {
     const trimmed = url.trim();
@@ -593,6 +644,10 @@ export function LinkSearchPage() {
       return;
     }
 
+    restoreScrollRef.current = false;
+    pendingScrollRef.current = null;
+    if (page === 1) clearLinkSearchScroll("smart");
+    setHighlightProductUrl(null);
     setPreview(null);
     setFetchState("idle");
     setFetchError("");
@@ -922,6 +977,7 @@ export function LinkSearchPage() {
                         saved={isProductUrlSaved(savedItems, result.url)}
                         loggedIn={Boolean(user)}
                         onSignIn={onSignIn}
+                        searchMode={searchMode}
                       />
                     ))}
                   </div>
@@ -1161,6 +1217,7 @@ export function LinkSearchPage() {
                           loggedIn={!!user}
                           onSignIn={onSignIn}
                           highlighted={highlightProductUrl === result.url}
+                          searchMode={searchMode}
                         />
                       ))}
                     </div>
@@ -1236,6 +1293,7 @@ export function LinkSearchPage() {
                   saved={previewSaved}
                   loggedIn={!!user}
                   onSignIn={onSignIn}
+                  searchMode={searchMode}
                 />
                 {previewSaved && (
                   <div className="flex flex-col items-center gap-3 rounded-xl border border-emerald-100 bg-emerald-50 p-4 text-center sm:flex-row sm:text-left">
