@@ -1,5 +1,6 @@
 import type { AdminSearchEvent } from "./admin";
 import type { SavedLink } from "../types";
+import { formatSearchHistoryQuery, parseSearchHistoryQuery } from "./searchHistory";
 
 export interface ChartRankItem {
   label: string;
@@ -15,10 +16,11 @@ export function buildTopSearchChartItems(events: AdminSearchEvent[], limit = 5):
   const grouped = events.reduce<
     Record<string, { label: string; count: number; users: Set<string> }>
   >((groups, event) => {
-    const query = event.query.trim();
-    if (!query) return groups;
+    const parsed = parseSearchHistoryQuery(event.query);
+    if (!parsed.display) return groups;
 
-    const key = normalizeKey(query);
+    // Group by mode + term so legacy Affiliate:/Lazada: merge with Search:/Smart Search:
+    const key = `${parsed.mode}:${normalizeKey(parsed.term)}`;
     const existing = groups[key];
     if (existing) {
       existing.count += 1;
@@ -26,7 +28,11 @@ export function buildTopSearchChartItems(events: AdminSearchEvent[], limit = 5):
       return groups;
     }
 
-    groups[key] = { label: query, count: 1, users: new Set([event.user_id]) };
+    groups[key] = {
+      label: parsed.display,
+      count: 1,
+      users: new Set([event.user_id]),
+    };
     return groups;
   }, {});
 
@@ -91,7 +97,12 @@ export function buildWishlistSiteChartItems(links: SavedLink[], limit = 6): Char
 
 export function summarizeSearchEvents(events: AdminSearchEvent[]) {
   const uniqueQueries = new Set(
-    events.map((event) => normalizeKey(event.query)).filter(Boolean),
+    events
+      .map((event) => {
+        const parsed = parseSearchHistoryQuery(event.query);
+        return parsed.display ? `${parsed.mode}:${normalizeKey(parsed.term)}` : "";
+      })
+      .filter(Boolean),
   );
   const uniqueUsers = new Set(events.map((event) => event.user_id).filter(Boolean));
   const top = buildTopSearchChartItems(events, 1)[0];
@@ -99,7 +110,7 @@ export function summarizeSearchEvents(events: AdminSearchEvent[]) {
     total: events.length,
     uniqueQueries: uniqueQueries.size,
     uniqueUsers: uniqueUsers.size,
-    topQuery: top?.label ?? null,
+    topQuery: top?.label ?? (events[0] ? formatSearchHistoryQuery(events[0].query) : null),
     topCount: top?.count ?? 0,
   };
 }

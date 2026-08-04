@@ -1,5 +1,5 @@
 /**
- * Affiliate Search — keyword search against synced Open API products in Supabase.
+ * Search — keyword search against synced Open API products in Supabase.
  * On by default; set VITE_AFFILIATE_SEARCH_ENABLED=false to hide the tab.
  */
 export const AFFILIATE_SEARCH_ENABLED =

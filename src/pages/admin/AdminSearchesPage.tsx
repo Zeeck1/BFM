@@ -13,6 +13,7 @@ import {
 } from "../../components/admin/AdminUi";
 import { useAdminData } from "../../contexts/AdminDataProvider";
 import { buildTopSearchChartItems, summarizeSearchEvents } from "../../lib/adminCharts";
+import { parseSearchHistoryQuery } from "../../lib/searchHistory";
 
 export function AdminSearchesPage() {
   const { data, error } = useAdminData();
@@ -60,7 +61,7 @@ export function AdminSearchesPage() {
     <div>
       <AdminPageHeader
         title="Searches"
-        description="Summary and chart of signed-in product searches across all users."
+        description="Summary of signed-in Search and Smart Search activity across all users."
         action={<AdminSearchField value={query} onChange={setQuery} placeholder="Filter searches…" />}
       />
       <AdminErrorNotice message={error} />
@@ -80,19 +81,21 @@ export function AdminSearchesPage() {
       <div className="mb-6 grid gap-4 xl:grid-cols-[minmax(0,1.2fr)_minmax(0,0.8fr)]">
         <AdminBarChart
           title="Top search terms"
-          description="Most searched names ranked by frequency."
+          description="Most searched names from Search and Smart Search, ranked by frequency."
           items={chartItems}
-          emptyMessage="No search history yet. Apply migration 019, then run a signed-in search."
+          emptyMessage="No search history yet. Apply migration 019, then run a signed-in Search or Smart Search."
           accent="indigo"
         />
 
         <section className="rounded-3xl border border-slate-200/80 bg-white p-5 shadow-sm">
           <h2 className="font-bold text-slate-900">Search summary</h2>
           <p className="mt-1 text-xs text-slate-500">
-            Compact ranking of query + user pairs in the current filter.
+            Compact ranking of Search / Smart Search + user pairs in the current filter.
           </p>
           <div className="mt-4 space-y-2.5">
-            {grouped.slice(0, 8).map((item, index) => (
+            {grouped.slice(0, 8).map((item, index) => {
+              const parsed = parseSearchHistoryQuery(item.query);
+              return (
               <div
                 key={`${item.userId}:${item.query}`}
                 className="flex items-start justify-between gap-3 rounded-2xl border border-slate-100 bg-slate-50/80 px-3.5 py-3"
@@ -102,9 +105,20 @@ export function AdminSearchesPage() {
                     {index + 1}
                   </span>
                   <div className="min-w-0">
-                    <p className="truncate text-sm font-semibold text-slate-900" title={item.query}>
-                      {item.query}
-                    </p>
+                    <div className="flex min-w-0 items-center gap-1.5">
+                      <span
+                        className={`shrink-0 rounded-md px-1.5 py-0.5 text-[10px] font-semibold ${
+                          parsed.mode === "smart"
+                            ? "bg-violet-50 text-violet-700"
+                            : "bg-indigo-50 text-indigo-700"
+                        }`}
+                      >
+                        {parsed.modeLabel}
+                      </span>
+                      <p className="truncate text-sm font-semibold text-slate-900" title={parsed.display}>
+                        {parsed.term || parsed.display}
+                      </p>
+                    </div>
                     <p className="truncate text-[11px] text-slate-500">
                       <Link
                         to={`/adminteam/users/${item.userId}`}
@@ -121,7 +135,8 @@ export function AdminSearchesPage() {
                   {item.count}×
                 </span>
               </div>
-            ))}
+              );
+            })}
             {grouped.length === 0 && (
               <p className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-4 py-8 text-center text-sm text-slate-500">
                 No matching searches.
@@ -141,13 +156,28 @@ export function AdminSearchesPage() {
           </div>
         </div>
         <div className="space-y-2.5">
-          {grouped.map((item) => (
+          {grouped.map((item) => {
+            const parsed = parseSearchHistoryQuery(item.query);
+            return (
             <div
               key={`all:${item.userId}:${item.query}`}
               className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200/80 bg-white px-4 py-3.5 shadow-sm"
             >
               <div className="min-w-0">
-                <p className="truncate font-semibold text-slate-900">{item.query}</p>
+                <div className="flex min-w-0 items-center gap-1.5">
+                  <span
+                    className={`shrink-0 rounded-md px-1.5 py-0.5 text-[10px] font-semibold ${
+                      parsed.mode === "smart"
+                        ? "bg-violet-50 text-violet-700"
+                        : "bg-indigo-50 text-indigo-700"
+                    }`}
+                  >
+                    {parsed.modeLabel}
+                  </span>
+                  <p className="truncate font-semibold text-slate-900" title={parsed.display}>
+                    {parsed.term || parsed.display}
+                  </p>
+                </div>
                 <p className="text-xs text-slate-500">
                   Searched by:{" "}
                   <Link
@@ -163,9 +193,10 @@ export function AdminSearchesPage() {
                 {item.count} search{item.count === 1 ? "" : "es"}
               </span>
             </div>
-          ))}
+            );
+          })}
           {grouped.length === 0 && (
-            <AdminEmptyState message="No search history yet. Apply migration 019, then run a signed-in search." />
+            <AdminEmptyState message="No search history yet. Apply migration 019, then run a signed-in Search or Smart Search." />
           )}
         </div>
       </section>

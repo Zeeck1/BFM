@@ -21,6 +21,7 @@ import {
   syncLazadaCatalog,
   type LazadaCatalogStats,
 } from "../../lib/lazadaCatalogAdmin";
+import { parseSearchHistoryQuery } from "../../lib/searchHistory";
 import { ORDER_STATUS_META } from "../../lib/utils";
 
 const CARDS = [
@@ -100,9 +101,9 @@ export function AdminOverviewPage() {
       <section className="mb-6 rounded-3xl border border-indigo-100 bg-gradient-to-br from-indigo-50 to-white p-5 shadow-sm">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <h2 className="font-bold text-slate-900">Lazada product catalog</h2>
+            <h2 className="font-bold text-slate-900">Search product catalog</h2>
             <p className="mt-1 text-sm text-slate-600">
-              Pull Affiliate feed into Supabase, then users search this catalog on the home page.
+              Sync Lazada Product Offer feed into Supabase for the home page Search tab (Smart Search uses RapidAPI separately).
             </p>
             <p className="mt-2 text-sm text-slate-700">
               <span className="font-semibold">{catalogStats?.product_count ?? "—"}</span> products
@@ -133,7 +134,7 @@ export function AdminOverviewPage() {
             className="inline-flex items-center justify-center gap-2 rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-indigo-500 disabled:opacity-50"
           >
             {syncing ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
-            {syncing ? "Syncing feed…" : "Sync Lazada feed"}
+            {syncing ? "Syncing catalog…" : "Sync Search catalog"}
           </button>
         </div>
       </section>
@@ -223,18 +224,32 @@ export function AdminOverviewPage() {
             </Link>
           </div>
           <div className="space-y-2">
-            {recentSearches.map((event) => (
+            {recentSearches.map((event) => {
+              const parsed = parseSearchHistoryQuery(event.query);
+              return (
               <div key={event.id} className="flex items-center justify-between gap-3 rounded-2xl bg-slate-50 px-3 py-2.5">
                 <div className="min-w-0">
-                  <p className="truncate text-sm font-semibold text-slate-900">{event.query}</p>
+                  <div className="flex min-w-0 items-center gap-1.5">
+                    <span
+                      className={`shrink-0 rounded-md px-1.5 py-0.5 text-[10px] font-semibold ${
+                        parsed.mode === "smart"
+                          ? "bg-violet-50 text-violet-700"
+                          : "bg-indigo-50 text-indigo-700"
+                      }`}
+                    >
+                      {parsed.modeLabel}
+                    </span>
+                    <p className="truncate text-sm font-semibold text-slate-900">{parsed.term || parsed.display}</p>
+                  </div>
                   <p className="truncate text-xs text-slate-500">{ownerLabel(event.user_id, data.profiles)}</p>
                 </div>
                 <span className="shrink-0 text-[11px] text-slate-400">{dateLabel(event.created_at)}</span>
               </div>
-            ))}
+              );
+            })}
             {recentSearches.length === 0 && (
               <p className="text-sm text-slate-500">
-                No search history yet. Apply migration 019 and run a signed-in Lazada search.
+                No search history yet. Apply migration 019 and run a signed-in Search or Smart Search.
               </p>
             )}
           </div>

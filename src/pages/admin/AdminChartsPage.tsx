@@ -53,7 +53,7 @@ export function AdminChartsPage() {
           title="Most searched names"
           description={`Top 5 search terms by how often users searched them. Total in chart: ${totalSearchQueries || 0}.`}
           items={topSearches}
-          emptyMessage="No search history yet. Apply migration 019, then run signed-in Lazada searches."
+          emptyMessage="No search history yet. Apply migration 019, then run signed-in Search or Smart Search."
           accent="indigo"
         />
         <AdminBarChart

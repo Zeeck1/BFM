@@ -198,10 +198,15 @@ function SearchResultCard({
 
       <div className="flex min-h-0 flex-1 flex-col border-t border-slate-100 p-3 sm:p-4">
         <div className="flex min-h-0 flex-1 flex-col gap-1.5">
-          <div className="h-5 shrink-0">
+          <div className="flex h-5 shrink-0 items-center gap-1.5">
             <span className="inline-block rounded-md bg-orange-50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-orange-600">
               {siteLabel}
             </span>
+            {hasSoldCount && (
+              <span className="inline-block rounded-md bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold tracking-wide text-emerald-700">
+                {formatSoldCount(result.sold_count!)} sold
+              </span>
+            )}
           </div>
           <Link
             to={`/product-detail?url=${encodeURIComponent(result.url)}`}
@@ -228,14 +233,8 @@ function SearchResultCard({
               </>
             )}
           </div>
-          <p className="line-clamp-1 min-h-[1.125rem] shrink-0 text-[11px] font-medium sm:text-xs">
-            {hasShopName && <span className="text-slate-600">{result.shop_name}</span>}
-            {hasShopName && hasSoldCount && <span className="text-slate-400"> · </span>}
-            {hasSoldCount ? (
-              <span className="text-emerald-600">{formatSoldCount(result.sold_count!)} sold</span>
-            ) : (
-              !hasShopName && <span className="invisible">&nbsp;</span>
-            )}
+          <p className="line-clamp-1 min-h-[1.125rem] shrink-0 text-[11px] font-medium text-slate-600 sm:text-xs">
+            {hasShopName ? result.shop_name : <span className="invisible">&nbsp;</span>}
           </p>
         </div>
 
@@ -311,7 +310,6 @@ export function LinkSearchPage() {
   const [searchError, setSearchError] = useState("");
   const [feedMatched, setFeedMatched] = useState(false);
   const [feedMatchCount, setFeedMatchCount] = useState(0);
-  const [feedTotal, setFeedTotal] = useState(0);
   const [guestSearchLocked, setGuestSearchLocked] = useState(() => hasGuestUsedFreeSearch());
   const [guestLimitModalOpen, setGuestLimitModalOpen] = useState(false);
   const { rate } = useExchangeRate();
@@ -388,7 +386,6 @@ export function LinkSearchPage() {
     setSearchError("");
     setFeedMatched(false);
     setFeedMatchCount(0);
-    setFeedTotal(0);
   }
 
   function applyAffiliateSession(session: {
@@ -406,7 +403,6 @@ export function LinkSearchPage() {
     setSearchError("");
     setFeedMatched(session.results.length > 0);
     setFeedMatchCount(session.results.length);
-    setFeedTotal(0);
     setFetchState("idle");
     setPreview(null);
     setFetchError("");
@@ -470,20 +466,18 @@ export function LinkSearchPage() {
       setSearchHasMore(response.hasMore);
       setFeedMatched(response.matchCount > 0);
       setFeedMatchCount(response.matchCount);
-      setFeedTotal(response.catalogTotal);
       setSearchState("done");
       if (results.length > 0) {
         saveLastLazadaFeedSession(cleaned, response.page, response.hasMore, results);
       }
       if (user && page === 1) {
-        void recordSearchHistory(user.id, `Affiliate: ${cleaned}`);
+        void recordSearchHistory(user.id, `Search: ${cleaned}`);
       }
     } catch (e) {
       setSearchError(toBfmUserError(e, BFM_ERRORS.feedUnavailable));
       setSearchHasMore(false);
       setFeedMatched(false);
       setFeedMatchCount(0);
-      setFeedTotal(0);
       setSearchState("error");
     }
   }
@@ -670,7 +664,7 @@ export function LinkSearchPage() {
         setGuestLimitModalOpen(true);
       }
       if (user && page === 1) {
-        void recordSearchHistory(user.id, `Lazada: ${query}`);
+        void recordSearchHistory(user.id, `Smart Search: ${query}`);
       }
     } catch (e) {
       setSearchError(toBfmUserError(e, BFM_ERRORS.searchFailed));
@@ -771,7 +765,7 @@ export function LinkSearchPage() {
     searchEnabled && Boolean(trimmedInput) && !isFetchableUrl(trimmedInput);
   const submitLabel = canSearchInput
     ? affiliateMode
-      ? "Search Affiliate"
+      ? "Search"
       : "Smart Search"
     : "Preview";
   const previewSaved = preview ? isProductUrlSaved(savedItems, preview.url) : false;
@@ -816,7 +810,7 @@ export function LinkSearchPage() {
           </h1>
           <p className="mx-auto mt-2 max-w-md text-sm text-slate-400 sm:mt-3 sm:max-w-none sm:text-base">
             {affiliateMode
-              ? "Affiliate Search uses your synced Lazada Product Offer catalog. Or paste any product URL."
+              ? "Search uses your synced Lazada Product Offer catalog. Or paste any product URL."
               : smartMode
                 ? "Smart Search uses RapidAPI for broader Lazada results. Or paste any product URL."
                 : "Paste any product URL — we fetch the details so you can save it to your wishlist."}
@@ -841,7 +835,7 @@ export function LinkSearchPage() {
                       : "text-slate-300 hover:text-white"
                   }`}
                 >
-                  Affiliate Search
+                  Search
                 </button>
               )}
               {SMART_SEARCH_ENABLED && (
@@ -884,7 +878,7 @@ export function LinkSearchPage() {
                 onPaste={handlePaste}
                 placeholder={
                   affiliateMode
-                    ? "Search affiliate products or paste a link..."
+                    ? "Search products or paste a link..."
                     : smartMode
                       ? "Smart Search Lazada or paste a link..."
                       : "Paste a product link..."
@@ -1108,11 +1102,11 @@ export function LinkSearchPage() {
                 <Loader2 className="h-5 w-5 shrink-0 animate-spin text-indigo-500" />
                 <div className="flex-1 space-y-2">
                   <p className="text-sm font-semibold text-slate-700">
-                    {affiliateMode ? "Affiliate" : "Smart"} search for “{trimmedInput}”…
+                    {affiliateMode ? "Search" : "Smart Search"} for “{trimmedInput}”…
                   </p>
                   <p className="text-xs text-slate-400">
                     {affiliateMode
-                      ? "Searching your synced affiliate database…"
+                      ? "Searching your product catalog…"
                       : "BFM usually responds in a few seconds."}
                   </p>
                 </div>
@@ -1173,7 +1167,7 @@ export function LinkSearchPage() {
                   <div>
                     <p className="text-sm font-bold text-slate-900">
                       {affiliateMode && trimmedInput
-                        ? `Affiliate results for “${trimmedInput}”`
+                        ? `Search results for “${trimmedInput}”`
                         : smartMode
                           ? "Smart Search results"
                           : "Lazada products"}
@@ -1181,17 +1175,15 @@ export function LinkSearchPage() {
                     <p className="text-xs text-slate-500">
                       {searchState === "loading"
                         ? affiliateMode
-                          ? "Searching your affiliate product database…"
+                          ? "Searching your product catalog…"
                           : "Searching Lazada via Smart Search…"
                         : searchResults.length > 0
                           ? affiliateMode && feedMatched
                             ? feedMatchCount <= searchResults.length
-                              ? `Showing all ${feedMatchCount} match${feedMatchCount !== 1 ? "es" : ""} from ${feedTotal || "—"} affiliate products`
+                              ? `Showing all ${feedMatchCount} match${feedMatchCount !== 1 ? "es" : ""}`
                               : `Showing ${searchResults.length} of ${feedMatchCount} matches · page ${searchPage}`
                             : `${searchResults.length} result${searchResults.length !== 1 ? "s" : ""} on page ${searchPage}`
-                          : affiliateMode && feedTotal > 0
-                            ? `Searched ${feedTotal} affiliate products — no match for “${trimmedInput}”`
-                            : "No products found for this search"}
+                          : "No products found for this search"}
                     </p>
                     <p className="text-[11px] text-slate-400">Tap product image to view full image.</p>
                   </div>
@@ -1251,34 +1243,62 @@ export function LinkSearchPage() {
                       </button>
                     </div>
                   </>
+                ) : affiliateMode ? (
+                  <div className="relative overflow-hidden rounded-3xl border border-indigo-100 bg-gradient-to-br from-indigo-50 via-white to-violet-50 p-6 shadow-sm sm:p-8">
+                    <div className="pointer-events-none absolute -right-10 -top-10 h-36 w-36 rounded-full bg-indigo-200/30 blur-2xl" />
+                    <div className="pointer-events-none absolute -bottom-12 -left-8 h-32 w-32 rounded-full bg-violet-200/25 blur-2xl" />
+                    <div className="relative mx-auto flex max-w-lg flex-col items-center text-center">
+                      <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-white shadow-md shadow-indigo-100 ring-1 ring-indigo-100">
+                        <Search className="h-6 w-6 text-indigo-500" />
+                      </div>
+                      <p className="mt-4 text-[11px] font-semibold uppercase tracking-[0.14em] text-indigo-500">
+                        Not in Search
+                      </p>
+                      <h3 className="mt-2 text-lg font-bold tracking-tight text-slate-900 sm:text-xl">
+                        “{trimmedInput}” is not present here
+                      </h3>
+                      <p className="mt-2 text-sm leading-relaxed text-slate-600">
+                        That searched product data is not present in here. You can upgrade to{" "}
+                        <span className="font-semibold text-indigo-700">Smart Search</span> or search
+                        in an app.
+                      </p>
+                      <div className="mt-6 flex w-full flex-col gap-2.5 sm:flex-row sm:justify-center">
+                        {SMART_SEARCH_ENABLED && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              switchSearchMode("smart");
+                              if (trimmedInput) {
+                                window.setTimeout(() => {
+                                  void runProductSearch(trimmedInput, 1);
+                                }, 0);
+                              }
+                            }}
+                            className="inline-flex items-center justify-center gap-2 rounded-xl bg-indigo-600 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-indigo-600/20 transition hover:bg-indigo-500"
+                          >
+                            <Sparkles className="h-4 w-4" />
+                            Upgrade to Smart Search
+                            <ArrowRight className="h-4 w-4" />
+                          </button>
+                        )}
+                        <a
+                          href={`https://www.lazada.co.th/catalog/?q=${encodeURIComponent(trimmedInput)}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-700 shadow-sm transition hover:border-slate-300 hover:bg-slate-50"
+                        >
+                          <ExternalLink className="h-4 w-4" />
+                          Search in an app
+                        </a>
+                      </div>
+                    </div>
+                  </div>
                 ) : (
                   <div className="rounded-2xl border border-dashed border-slate-200 bg-white p-8 text-center">
-                    <p className="text-sm font-semibold text-slate-700">
-                      {affiliateMode ? "No match in affiliate catalog" : "No products found"}
-                    </p>
+                    <p className="text-sm font-semibold text-slate-700">No products found</p>
                     <p className="mt-1 text-sm text-slate-400">
-                      {affiliateMode
-                        ? feedTotal > 0
-                          ? `Searched ${feedTotal} synced affiliate products — none match “${trimmedInput}”. Try Smart Search for broader Lazada results, or paste a product link.`
-                          : "Affiliate catalog is empty. Wait for the server sync, then try again — or use Smart Search / paste a link."
-                        : "Try a shorter keyword, English product name, or paste a product link."}
+                      Try a shorter keyword, English product name, or paste a product link.
                     </p>
-                    {affiliateMode && SMART_SEARCH_ENABLED && (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          switchSearchMode("smart");
-                          if (trimmedInput) {
-                            window.setTimeout(() => {
-                              void runProductSearch(trimmedInput, 1);
-                            }, 0);
-                          }
-                        }}
-                        className="mt-4 rounded-lg bg-indigo-600 px-4 py-2 text-xs font-semibold text-white hover:bg-indigo-500"
-                      >
-                        Try Smart Search
-                      </button>
-                    )}
                   </div>
                 )}
               </div>

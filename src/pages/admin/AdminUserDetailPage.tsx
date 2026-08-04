@@ -10,6 +10,7 @@ import {
 } from "../../components/admin/AdminUi";
 import { AdminWishlistProductCard } from "../../components/admin/AdminWishlistProductCard";
 import { AdminUserAvatar } from "../../components/admin/AdminUserAvatar";
+import { parseSearchHistoryQuery } from "../../lib/searchHistory";
 import { ORDER_STATUS_META } from "../../lib/utils";
 
 export function AdminUserDetailPage() {
@@ -35,12 +36,18 @@ export function AdminUserDetailPage() {
   const searchEvents = data.searchEvents.filter((item) => item.user_id === user.id);
 
   const topSearches = Object.entries(
-    searchEvents.reduce<Record<string, number>>((counts, event) => {
-      const query = event.query.trim();
-      counts[query] = (counts[query] ?? 0) + 1;
+    searchEvents.reduce<Record<string, { label: string; count: number }>>((counts, event) => {
+      const parsed = parseSearchHistoryQuery(event.query);
+      if (!parsed.display) return counts;
+      const key = `${parsed.mode}:${parsed.term.toLowerCase()}`;
+      const existing = counts[key];
+      counts[key] = existing
+        ? { ...existing, count: existing.count + 1 }
+        : { label: parsed.display, count: 1 };
       return counts;
     }, {}),
   )
+    .map(([, value]) => [value.label, value.count] as const)
     .sort((a, b) => b[1] - a[1])
     .slice(0, 8);
 

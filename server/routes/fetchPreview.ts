@@ -528,9 +528,12 @@ fetchPreviewRouter.get("/lazada-feed-catalog", async (req, res) => {
 
   try {
     let list = await listLazadaCatalogPage(query, page, limit);
+    let stats = await getLazadaCatalogStats();
 
-    // Cold start: DB empty but affiliate configured → sync once then re-query.
+    // Cold start only when the catalog table is empty — never when a keyword
+    // simply has zero matches (that used to kick off a multi-minute sync and 503).
     if (
+      stats.product_count === 0 &&
       list.total === 0 &&
       !list.blocked &&
       !wantSync &&
@@ -540,10 +543,11 @@ fetchPreviewRouter.get("/lazada-feed-catalog", async (req, res) => {
       const sync = await syncExpandedFeedToDatabase();
       if (sync.ok && sync.products_upserted > 0) {
         list = await listLazadaCatalogPage(query, page, limit);
+        stats = await getLazadaCatalogStats();
       }
     }
 
-    if (list.blocked && list.total === 0) {
+    if (list.blocked && list.total === 0 && stats.product_count === 0) {
       res.status(503).json({
         error: BFM_ERRORS.feedUnavailable,
         products: [],
@@ -552,7 +556,6 @@ fetchPreviewRouter.get("/lazada-feed-catalog", async (req, res) => {
       return;
     }
 
-    const stats = await getLazadaCatalogStats();
     res.json({
       source: list.source,
       page: list.page,
