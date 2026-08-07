@@ -43,11 +43,16 @@ export const env = {
     process.env.SUPABASE_URL?.trim() ||
     process.env.VITE_SUPABASE_URL?.trim() ||
     "",
+  /** Anon key — used with a user JWT for public.is_admin() checks */
+  supabaseAnonKey:
+    process.env.SUPABASE_ANON_KEY?.trim() ||
+    process.env.VITE_SUPABASE_ANON_KEY?.trim() ||
+    "",
   /** Service role key — catalog sync/search (never expose to browser) */
   supabaseServiceRoleKey: process.env.SUPABASE_SERVICE_ROLE_KEY?.trim() ?? "",
   /** Max feed pages to pull per sync/source (each page up to 40 products) */
   lazadaFeedSyncMaxPages: Math.min(
-    Math.max(Number.parseInt(process.env.LAZADA_FEED_SYNC_MAX_PAGES ?? "50", 10) || 50, 1),
+    Math.max(Number.parseInt(process.env.LAZADA_FEED_SYNC_MAX_PAGES ?? "150", 10) || 150, 1),
     500,
   ),
   /**
@@ -57,8 +62,8 @@ export const env = {
   lazadaFeedExpandCategories: process.env.LAZADA_FEED_EXPAND_CATEGORIES !== "false",
   /** Cap how many categoryL1 feeds to expand (each can be many pages). */
   lazadaFeedMaxCategories: Math.min(
-    Math.max(Number.parseInt(process.env.LAZADA_FEED_MAX_CATEGORIES ?? "40", 10) || 40, 0),
-    120,
+    Math.max(Number.parseInt(process.env.LAZADA_FEED_MAX_CATEGORIES ?? "200", 10) || 200, 0),
+    400,
   ),
   /** Comma-separated MM campaign IDs for offerType=2 */
   lazadaAffiliateMmCampaignIds: (process.env.LAZADA_AFFILIATE_MM_CAMPAIGN_IDS ?? "")
@@ -72,10 +77,10 @@ export const env = {
     .filter((n) => Number.isFinite(n) && n > 0),
   /**
    * Minutes between live Affiliate → Supabase syncs (0 = boot sync only).
-   * Default 60. Keeps Feed DB updated without manual refresh.
+   * Default 20. Keeps Feed DB updated without manual refresh.
    */
   lazadaFeedLiveSyncMinutes: Math.min(
-    Math.max(Number.parseInt(process.env.LAZADA_FEED_LIVE_SYNC_MINUTES ?? "60", 10) || 0, 0),
+    Math.max(Number.parseInt(process.env.LAZADA_FEED_LIVE_SYNC_MINUTES ?? "20", 10) || 0, 0),
     24 * 60,
   ),
 };

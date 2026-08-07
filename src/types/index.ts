@@ -18,7 +18,10 @@ export interface ProductPreview {
   /** Lazada-style Highlights bullets (separate from Description). */
   highlights?: string[];
   image_url?: string;
+  /** Live / discount selling price */
   price_thb?: number;
+  /** Original list price when higher than the selling price */
+  original_price_thb?: number;
   site_name?: string;
   shop_name?: string;
   review_count?: number;

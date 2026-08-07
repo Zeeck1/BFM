@@ -290,7 +290,16 @@ export function ProductDetailPage() {
                   {product.price_thb != null || estimatedMmk != null ? (
                     <div className="mt-1">
                       {product.price_thb != null && (
-                        <p className="text-2xl font-bold text-slate-900">{formatTHB(product.price_thb)}</p>
+                        <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+                          <p className="text-2xl font-bold text-slate-900">{formatTHB(product.price_thb)}</p>
+                          {"original_price_thb" in product &&
+                            typeof product.original_price_thb === "number" &&
+                            product.original_price_thb > product.price_thb && (
+                              <p className="text-sm font-medium text-slate-400 line-through">
+                                {formatTHB(product.original_price_thb)}
+                              </p>
+                            )}
+                        </div>
                       )}
                       {estimatedMmk != null && (
                         <p className="mt-0.5 text-sm font-medium text-slate-500">≈ {formatMMK(estimatedMmk)}</p>

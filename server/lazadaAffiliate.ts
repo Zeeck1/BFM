@@ -54,6 +54,63 @@ function parsePriceThb(raw: unknown): number | undefined {
   return value;
 }
 
+/**
+ * Lazada selling price vs original (strike) price.
+ * Prefer current/discount/sale fields — those are the live storefront price.
+ */
+export function extractLazadaOfferPrices(raw: unknown): {
+  price_thb?: number;
+  original_price_thb?: number;
+} {
+  const row = asRecord(raw);
+  if (!row) return {};
+
+  const nested =
+    asRecord(row.price_info) ??
+    asRecord(row.priceInfo) ??
+    asRecord(row.priceDto) ??
+    asRecord(row.sku) ??
+    null;
+
+  const selling =
+    parsePriceThb(row.current_price) ??
+    parsePriceThb(row.currentPrice) ??
+    parsePriceThb(row.discountPrice) ??
+    parsePriceThb(row.discount_price) ??
+    parsePriceThb(row.salePrice) ??
+    parsePriceThb(row.sale_price) ??
+    parsePriceThb(row.offerPrice) ??
+    parsePriceThb(row.special_price) ??
+    parsePriceThb(row.specialPrice) ??
+    parsePriceThb(row.promotionalPrice) ??
+    parsePriceThb(nested?.sale_price) ??
+    parsePriceThb(nested?.salePrice) ??
+    parsePriceThb(nested?.current_price) ??
+    parsePriceThb(nested?.discountPrice) ??
+    parsePriceThb(row.price) ??
+    parsePriceThb(nested?.price) ??
+    parsePriceThb(row.productPrice) ??
+    parsePriceThb(row.product_price);
+
+  // List / pre-discount price (strike-through). Prefer explicit original fields,
+  // then productPrice / price when those are higher than the selling price.
+  const original =
+    parsePriceThb(row.originalPrice) ??
+    parsePriceThb(row.original_price) ??
+    parsePriceThb(row.listPrice) ??
+    parsePriceThb(row.list_price) ??
+    parsePriceThb(nested?.original_price) ??
+    parsePriceThb(row.productPrice) ??
+    parsePriceThb(row.product_price) ??
+    parsePriceThb(row.price) ??
+    parsePriceThb(nested?.price);
+
+  if (selling == null && original == null) return {};
+  if (selling == null) return { price_thb: original };
+  if (original == null || original <= selling) return { price_thb: selling };
+  return { price_thb: selling, original_price_thb: original };
+}
+
 function pickImage(value: unknown): string | undefined {
   if (!value) return undefined;
   if (typeof value === "string" && value.trim()) return value.trim();
@@ -141,6 +198,8 @@ export interface LazadaCatalogRow {
   product_url: string;
   image_url: string | null;
   price_thb: number | null;
+  /** Original / list price when higher than the live selling price. */
+  original_price_thb?: number | null;
   shop_name: string | null;
   brand_name: string | null;
   category_l1: number | null;
@@ -155,12 +214,20 @@ export interface LazadaCatalogRow {
 
 export function catalogRowToSearchResult(row: LazadaCatalogRow): LazadaSearchResult {
   const id = String(row.product_id ?? "").trim();
+  const fromRaw = extractLazadaOfferPrices(row.raw);
+  const price_thb = fromRaw.price_thb ?? row.price_thb ?? undefined;
+  const original_price_thb =
+    fromRaw.original_price_thb ??
+    (row.original_price_thb != null && price_thb != null && row.original_price_thb > price_thb
+      ? row.original_price_thb
+      : undefined);
   return {
     url: id ? productUrl(id) : row.product_url,
     title: row.title || undefined,
     image_url: row.image_url ?? undefined,
     site_name: "Lazada",
-    price_thb: row.price_thb ?? undefined,
+    price_thb,
+    original_price_thb,
     shop_name: row.shop_name ?? row.brand_name ?? undefined,
     source_id: id || undefined,
     sold_count: row.sold_count ?? undefined,
@@ -199,16 +266,7 @@ export function normalizeCatalogRow(
     pickImage(row.image_url) ??
     pickImage(row.image);
 
-  const price =
-    parsePriceThb(row.discountPrice) ??
-    parsePriceThb(row.discount_price) ??
-    parsePriceThb(row.price) ??
-    parsePriceThb(row.productPrice) ??
-    parsePriceThb(row.product_price) ??
-    parsePriceThb(row.salePrice) ??
-    parsePriceThb(row.sale_price) ??
-    parsePriceThb(row.offerPrice) ??
-    parsePriceThb(row.currentPrice);
+  const offerPrices = extractLazadaOfferPrices(row);
 
   const soldRaw = row.sales7d ?? row.sales_7d ?? row.soldCount ?? row.sold_count;
   const sold =
@@ -238,7 +296,8 @@ export function normalizeCatalogRow(
     title: title || `Lazada product ${productId}`,
     product_url: productUrl(productId, feedUrl || undefined),
     image_url: image ?? null,
-    price_thb: price ?? null,
+    price_thb: offerPrices.price_thb ?? null,
+    original_price_thb: offerPrices.original_price_thb ?? null,
     shop_name:
       pickString(row.sellerName, row.seller_name, row.shopName, row.shop_name) || null,
     brand_name: pickString(row.brandName, row.brand_name) || null,
@@ -491,7 +550,7 @@ export async function fetchAllLazadaProductFeedCatalogParallel(
 
   const offerType = options.offerType ?? 1;
   const pageSize = Math.min(Math.max(options.pageSize ?? 40, 1), 40);
-  const maxPages = Math.min(Math.max(options.maxPages ?? env.lazadaFeedSyncMaxPages, 1), 200);
+  const maxPages = Math.min(Math.max(options.maxPages ?? env.lazadaFeedSyncMaxPages, 1), 500);
   const chunkSize = 5;
   const byId = new Map<string, LazadaCatalogRow>();
   let pagesFetched = 0;
@@ -691,7 +750,7 @@ export async function fetchAllLazadaProductFeedCatalog(
 
   const offerType = options.offerType ?? 1;
   const pageSize = Math.min(Math.max(options.pageSize ?? 40, 1), 40);
-  const maxPages = Math.min(Math.max(options.maxPages ?? env.lazadaFeedSyncMaxPages, 1), 200);
+  const maxPages = Math.min(Math.max(options.maxPages ?? env.lazadaFeedSyncMaxPages, 1), 500);
 
   const byId = new Map<string, LazadaCatalogRow>();
   let page = 1;
@@ -778,37 +837,46 @@ export async function fetchExpandedLazadaProductFeedCatalog(
   // 1) Regular offers (parallel pages)
   merge(await fetchAllLazadaProductFeedCatalogParallel({ offerType: 1, ...options }));
 
-  // 2) Expand by categoryL1 discovered in regular feed — API returns more SKUs per category
+  // 2) Expand by categoryL1 — two discovery rounds pull categories found in newly added SKUs
   if (env.lazadaFeedExpandCategories && env.lazadaFeedMaxCategories > 0) {
-    const categories = [
-      ...new Set(
-        [...byId.values()]
-          .map((row) => row.category_l1)
-          .filter((v): v is number => typeof v === "number" && Number.isFinite(v) && v > 0),
-      ),
-    ].slice(0, env.lazadaFeedMaxCategories);
+    const fetchedCategories = new Set<number>();
+    const maxRounds = 2;
 
-    console.warn(
-      `[BFM] Expanding Open API feed across ${categories.length} categoryL1 value(s)…`,
-    );
-
-    // Fetch a few categories in parallel for speed.
-    const catChunk = 3;
-    for (let i = 0; i < categories.length; i += catChunk) {
-      const slice = categories.slice(i, i + catChunk);
-      const parts = await Promise.all(
-        slice.map((categoryL1) =>
-          fetchAllLazadaProductFeedCatalogParallel({
-            offerType: 1,
-            categoryL1,
-            ...options,
-          }),
+    for (let round = 1; round <= maxRounds; round += 1) {
+      const discovered = [
+        ...new Set(
+          [...byId.values()]
+            .map((row) => row.category_l1)
+            .filter((v): v is number => typeof v === "number" && Number.isFinite(v) && v > 0),
         ),
-      );
-      for (const part of parts) merge(part);
+      ].filter((id) => !fetchedCategories.has(id));
+
+      const remainingSlots = env.lazadaFeedMaxCategories - fetchedCategories.size;
+      if (remainingSlots <= 0 || discovered.length === 0) break;
+
+      const categories = discovered.slice(0, remainingSlots);
       console.warn(
-        `[BFM] Expanded feed progress: ${byId.size} unique products (${Math.min(i + catChunk, categories.length)}/${categories.length} categories)`,
+        `[BFM] Expanding Open API feed round ${round}: ${categories.length} new categoryL1 value(s)…`,
       );
+
+      const catChunk = 4;
+      for (let i = 0; i < categories.length; i += catChunk) {
+        const slice = categories.slice(i, i + catChunk);
+        for (const id of slice) fetchedCategories.add(id);
+        const parts = await Promise.all(
+          slice.map((categoryL1) =>
+            fetchAllLazadaProductFeedCatalogParallel({
+              offerType: 1,
+              categoryL1,
+              ...options,
+            }),
+          ),
+        );
+        for (const part of parts) merge(part);
+        console.warn(
+          `[BFM] Expanded feed progress: ${byId.size} unique products (${fetchedCategories.size}/${env.lazadaFeedMaxCategories} categories, round ${round})`,
+        );
+      }
     }
   }
 

@@ -75,7 +75,15 @@ export function ProductPreviewCard({
             </p>
           )}
           {preview.price_thb != null && (
-            <p className="text-xl font-bold text-slate-900">{formatTHB(preview.price_thb)}</p>
+            <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+              <p className="text-xl font-bold text-slate-900">{formatTHB(preview.price_thb)}</p>
+              {preview.original_price_thb != null &&
+                preview.original_price_thb > preview.price_thb && (
+                  <p className="text-sm font-medium text-slate-400 line-through">
+                    {formatTHB(preview.original_price_thb)}
+                  </p>
+                )}
+            </div>
           )}
         </div>
 

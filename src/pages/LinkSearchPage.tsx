@@ -7,6 +7,7 @@ import {
 } from "react";
 import { Link, useOutletContext } from "react-router-dom";
 import {
+  ArrowDownWideNarrow,
   ArrowRight,
   BookmarkPlus,
   CheckCircle2,
@@ -39,6 +40,7 @@ import {
 import {
   AFFILIATE_SEARCH_PAGE_SIZE,
   searchAffiliateCatalog,
+  type CatalogSort,
 } from "../lib/affiliateCatalogSearch";
 import { LAZADA_SEARCH_PAGE_SIZE, searchLazadaProducts } from "../lib/lazadaSearch";
 import { clearLastLazadaSearch, loadLastLazadaSearch } from "../lib/lazadaSearchCache";
@@ -66,6 +68,31 @@ import { fetchTrendingProducts, TRENDING_PRODUCTS_LIMIT } from "../lib/trendingP
 import { isFetchableUrl } from "../lib/utils";
 import { formatMMK, formatSoldCount, formatTHB } from "../lib/utils";
 import type { ProductPreview, ProductSearchResult } from "../types";
+
+const SEARCH_SORT_OPTIONS: Array<{ value: CatalogSort; label: string }> = [
+  { value: "price_asc", label: "Price: Low to High" },
+  { value: "price_desc", label: "Price: High to Low" },
+  { value: "popular", label: "Most sold" },
+];
+
+function sortSearchResults(
+  results: ProductSearchResult[],
+  sort: CatalogSort,
+): ProductSearchResult[] {
+  const copy = [...results];
+  if (sort === "price_desc") {
+    copy.sort(
+      (a, b) => (b.price_thb ?? Number.NEGATIVE_INFINITY) - (a.price_thb ?? Number.NEGATIVE_INFINITY),
+    );
+  } else if (sort === "popular") {
+    copy.sort((a, b) => (b.sold_count ?? 0) - (a.sold_count ?? 0));
+  } else {
+    copy.sort(
+      (a, b) => (a.price_thb ?? Number.POSITIVE_INFINITY) - (b.price_thb ?? Number.POSITIVE_INFINITY),
+    );
+  }
+  return copy;
+}
 
 type FetchState = "idle" | "loading" | "done" | "error";
 const ADSENSE_SEARCH_SLOT =
@@ -219,9 +246,17 @@ function SearchResultCard({
           <div className="min-h-[2.75rem] shrink-0 sm:min-h-[3rem]">
             {result.price_thb != null ? (
               <>
-                <p className="truncate text-base font-bold leading-tight text-slate-900 sm:text-lg">
-                  {formatTHB(result.price_thb)}
-                </p>
+                <div className="flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-0.5">
+                  <p className="truncate text-base font-bold leading-tight text-slate-900 sm:text-lg">
+                    {formatTHB(result.price_thb)}
+                  </p>
+                  {result.original_price_thb != null &&
+                    result.original_price_thb > result.price_thb && (
+                      <p className="truncate text-[11px] font-medium text-slate-400 line-through sm:text-xs">
+                        {formatTHB(result.original_price_thb)}
+                      </p>
+                    )}
+                </div>
                 <p className="mt-0.5 truncate text-[11px] font-medium text-slate-500 sm:text-xs">
                   ≈ {formatMMK(result.price_thb * rate)}
                 </p>
@@ -310,6 +345,7 @@ export function LinkSearchPage() {
   const [searchError, setSearchError] = useState("");
   const [feedMatched, setFeedMatched] = useState(false);
   const [feedMatchCount, setFeedMatchCount] = useState(0);
+  const [searchSort, setSearchSort] = useState<CatalogSort>("price_asc");
   const [guestSearchLocked, setGuestSearchLocked] = useState(() => hasGuestUsedFreeSearch());
   const [guestLimitModalOpen, setGuestLimitModalOpen] = useState(false);
   const { rate } = useExchangeRate();
@@ -443,10 +479,19 @@ export function LinkSearchPage() {
     setUrl("");
   }
 
-  async function runAffiliateSearch(page = 1, query = "") {
+  async function runAffiliateSearch(page = 1, query = "", sort: CatalogSort = searchSort) {
     const cleaned = query.trim();
     if (!cleaned) {
       clearSearchResults();
+      return;
+    }
+
+    // Guests get one free Search. Extra searches (and pagination) require sign-in.
+    if (!user && (page > 1 || guestSearchLocked || hasGuestUsedFreeSearch())) {
+      setGuestSearchLocked(true);
+      setGuestLimitModalOpen(true);
+      setSearchError("");
+      setSearchState(searchResults.length > 0 ? "done" : "idle");
       return;
     }
 
@@ -459,7 +504,7 @@ export function LinkSearchPage() {
     setSearchState("loading");
 
     try {
-      const response = await searchAffiliateCatalog(cleaned, page);
+      const response = await searchAffiliateCatalog(cleaned, page, sort);
       const results = response.results.slice(0, AFFILIATE_SEARCH_PAGE_SIZE);
       setSearchResults(results);
       setSearchPage(response.page);
@@ -469,6 +514,11 @@ export function LinkSearchPage() {
       setSearchState("done");
       if (results.length > 0) {
         saveLastLazadaFeedSession(cleaned, response.page, response.hasMore, results);
+      }
+      if (!user && page === 1) {
+        markGuestFreeSearchUsed();
+        setGuestSearchLocked(true);
+        setGuestLimitModalOpen(true);
       }
       if (user && page === 1) {
         void recordSearchHistory(user.id, `Search: ${cleaned}`);
@@ -628,7 +678,7 @@ export function LinkSearchPage() {
     if (pasted.startsWith("http")) setTimeout(() => setUrl(pasted), 0);
   }
 
-  async function runProductSearch(query: string, page = 1) {
+  async function runProductSearch(query: string, page = 1, sort: CatalogSort = searchSort) {
     // Guests get one free keyword search. Extra searches (and pagination) require sign-in.
     if (!user && (page > 1 || guestSearchLocked || hasGuestUsedFreeSearch())) {
       setGuestSearchLocked(true);
@@ -654,7 +704,7 @@ export function LinkSearchPage() {
     try {
       const response = await searchLazadaProducts(query, page);
 
-      setSearchResults(response.results);
+      setSearchResults(sortSearchResults(response.results, sort));
       setSearchPage(response.page);
       setSearchHasMore(response.hasMore);
       setSearchState("done");
@@ -673,6 +723,21 @@ export function LinkSearchPage() {
     }
   }
 
+  async function handleSortChange(next: CatalogSort) {
+    setSearchSort(next);
+    if (!trimmedInput || isFetchableUrl(trimmedInput)) return;
+    if (searchState !== "done" && searchResults.length === 0) return;
+
+    if (affiliateMode) {
+      await runAffiliateSearch(1, trimmedInput, next);
+      return;
+    }
+    if (smartMode) {
+      // Re-sort current Smart Search page without another API call.
+      setSearchResults((prev) => sortSearchResults(prev, next));
+    }
+  }
+
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     const trimmed = url.trim();
@@ -680,6 +745,11 @@ export function LinkSearchPage() {
 
     if (!isFetchableUrl(trimmed)) {
       if (affiliateMode) {
+        if (!user && (guestSearchLocked || hasGuestUsedFreeSearch())) {
+          setGuestSearchLocked(true);
+          setGuestLimitModalOpen(true);
+          return;
+        }
         setPreview(null);
         setFetchState("idle");
         setFetchError("");
@@ -810,16 +880,16 @@ export function LinkSearchPage() {
           </h1>
           <p className="mx-auto mt-2 max-w-md text-sm text-slate-400 sm:mt-3 sm:max-w-none sm:text-base">
             {affiliateMode
-              ? "Search uses your synced Lazada Product Offer catalog. Or paste any product URL."
+              ? "Search Lazada products or paste any product URL."
               : smartMode
-                ? "Smart Search uses RapidAPI for broader Lazada results. Or paste any product URL."
+                ? "Fast and update Lazada product results or paste any product URL."
                 : "Paste any product URL — we fetch the details so you can save it to your wishlist."}
           </p>
-          {smartMode && !user && (
+          {(affiliateMode || smartMode) && !user && (
             <p className="mx-auto mt-2 max-w-lg text-xs text-slate-500">
               {guestSearchLocked
-                ? "Free guest Smart Search used. Sign in to keep searching."
-                : "Guests get 1 free Smart Search. Sign in for unlimited searches."}
+                ? `Free guest ${affiliateMode ? "Search" : "Smart Search"} used. Sign in to keep searching.`
+                : `Guests get 1 free ${affiliateMode ? "Search" : "Smart Search"}. Sign in for unlimited searches.`}
             </p>
           )}
 
@@ -1163,7 +1233,7 @@ export function LinkSearchPage() {
 
             {showProductGrid && (
               <div className="space-y-4">
-                <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
                   <div>
                     <p className="text-sm font-bold text-slate-900">
                       {affiliateMode && trimmedInput
@@ -1187,6 +1257,24 @@ export function LinkSearchPage() {
                     </p>
                     <p className="text-[11px] text-slate-400">Tap product image to view full image.</p>
                   </div>
+                  {searchResults.length > 0 && (
+                    <label className="relative inline-flex w-full items-center sm:w-auto">
+                      <span className="sr-only">Sort products</span>
+                      <ArrowDownWideNarrow className="pointer-events-none absolute left-3 h-4 w-4 text-slate-400" />
+                      <select
+                        value={searchSort}
+                        onChange={(e) => void handleSortChange(e.target.value as CatalogSort)}
+                        className="w-full appearance-none rounded-xl border border-slate-200 bg-white py-2.5 pl-9 pr-9 text-xs font-semibold text-slate-700 shadow-sm outline-none transition hover:border-slate-300 focus:border-indigo-300 focus:ring-2 focus:ring-indigo-100 sm:w-52 sm:text-sm"
+                      >
+                        {SEARCH_SORT_OPTIONS.map((option) => (
+                          <option key={option.value} value={option.value}>
+                            {option.label}
+                          </option>
+                        ))}
+                      </select>
+                      <ChevronRight className="pointer-events-none absolute right-3 h-4 w-4 rotate-90 text-slate-400" />
+                    </label>
+                  )}
                 </div>
 
                 {searchResults.length > 0 ? (
@@ -1229,7 +1317,8 @@ export function LinkSearchPage() {
                       <button
                         type="button"
                         onClick={() => {
-                          if (!browseMode && !user && guestSearchLocked) {
+                          if (!user && (guestSearchLocked || hasGuestUsedFreeSearch())) {
+                            setGuestSearchLocked(true);
                             setGuestLimitModalOpen(true);
                             return;
                           }
@@ -1337,7 +1426,7 @@ export function LinkSearchPage() {
         </div>
       </section>
 
-      {smartMode && (
+      {(affiliateMode || smartMode) && (
         <GuestSearchLimitModal
           open={guestLimitModalOpen && !user}
           onClose={() => setGuestLimitModalOpen(false)}

@@ -17,7 +17,10 @@ export interface LazadaPreviewResult {
   highlights?: string[];
   image_url?: string;
   site_name: string;
+  /** Live / discount selling price on Lazada */
   price_thb?: number;
+  /** Original list price when higher than the selling price */
+  original_price_thb?: number;
   shop_name?: string;
   review_count?: number;
   average_score?: number;
@@ -252,13 +255,14 @@ function priceFromJsonLd(html: string): number | undefined {
 
 /** Scan Lazada inline JSON / module data for common price fields. */
 function priceFromInlineJson(html: string): number | undefined {
+  // Prefer live/sale fields — never treat origin/list price as the selling price.
   const patterns = [
     /"salePrice"\s*:\s*\{[^}]*"value"\s*:\s*([\d.]+)/,
     /"salePrice"\s*:\s*\{[^}]*"price"\s*:\s*([\d.]+)/,
+    /"discountPrice"\s*:\s*([\d.]+)/,
     /"currentPrice"\s*:\s*([\d.]+)/,
     /"pdp_price"\s*:\s*([\d.]+)/,
     /"final_price"\s*:\s*([\d.]+)/,
-    /"originPrice"\s*:\s*([\d.]+)/,
     /"promotionPrice"\s*:\s*([\d.]+)/,
     /"price"\s*:\s*([\d]{1,7}(?:\.[\d]{1,2})?)/,
     /"price"\s*:\s*"([\d,]+\.?\d*)"/,
@@ -566,14 +570,30 @@ function normalizeRapidApiItem(item: unknown): LazadaSearchResult | null {
       pickImage(record.pic_url),
   );
 
-  const price_thb =
-    pickNumber(record.price) ||
+  const priceInfo = asRecord(record.price_info) ?? asRecord(record.priceInfo);
+  const selling =
     pickNumber(record.sale_price) ||
     pickNumber(record.salePrice) ||
+    pickNumber(record.discount_price) ||
+    pickNumber(record.discountPrice) ||
+    pickNumber(record.current_price) ||
+    pickNumber(record.currentPrice) ||
+    pickNumber(record.special_price) ||
+    pickNumber(priceInfo?.sale_price) ||
+    pickNumber(priceInfo?.salePrice) ||
+    pickNumber(priceInfo?.current_price) ||
     pickNumber(record.sku_price) ||
-    pickNumber(record.price_info) ||
-    pickNumber(asRecord(record.price_info)?.sale_price) ||
-    pickNumber(asRecord(record.price_info)?.price);
+    pickNumber(record.price) ||
+    pickNumber(priceInfo?.price);
+  const original =
+    pickNumber(record.original_price) ||
+    pickNumber(record.originalPrice) ||
+    pickNumber(record.list_price) ||
+    pickNumber(priceInfo?.original_price) ||
+    pickNumber(record.price);
+  const price_thb = selling;
+  const original_price_thb =
+    original != null && selling != null && original > selling ? original : undefined;
 
   const sold_count =
     pickSoldCount(record.sold_count) ||
@@ -603,6 +623,7 @@ function normalizeRapidApiItem(item: unknown): LazadaSearchResult | null {
     title: decodeHtml(title),
     image_url,
     price_thb,
+    original_price_thb,
     sold_count,
     shop_name,
     review_count,

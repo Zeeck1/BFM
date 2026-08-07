@@ -1,10 +1,12 @@
 // server/lazadaCatalog.ts
 // Sync Lazada Affiliate feed into Supabase and search the local catalog.
 
+import { createClient } from "@supabase/supabase-js";
 import { env } from "./config/env.js";
 import {
   catalogRowToSearchResult,
   clearLazadaAffiliateFeedCache,
+  extractLazadaOfferPrices,
   fetchLazadaProductFeedCatalog,
   getCachedFullFeedCatalog,
   isLazadaAffiliateConfigured,
@@ -88,6 +90,7 @@ export interface LeanCatalogProduct {
   title: string;
   image_url: string | null;
   price_thb: number | null;
+  original_price_thb: number | null;
   shop_name: string | null;
   brand_name: string | null;
   category_l1: number | null;
@@ -102,17 +105,27 @@ export interface LeanCatalogProduct {
 function mapLeanProduct(row: Record<string, unknown>): LeanCatalogProduct {
   const product_id = String(row.product_id ?? "");
   const product_url = String(row.product_url ?? "") || lazadaProductPageUrl(product_id);
+  const fromRaw = extractLazadaOfferPrices(row.raw);
+  const storedPrice =
+    typeof row.price_thb === "number"
+      ? row.price_thb
+      : row.price_thb != null
+        ? Number(row.price_thb)
+        : null;
+  const price_thb = fromRaw.price_thb ?? (Number.isFinite(storedPrice) ? storedPrice : null);
+  const original_price_thb =
+    fromRaw.original_price_thb != null &&
+    price_thb != null &&
+    fromRaw.original_price_thb > price_thb
+      ? fromRaw.original_price_thb
+      : null;
   return {
     product_id,
     product_page_url: lazadaProductPageUrl(product_id) || product_url,
     title: String(row.title ?? ""),
     image_url: typeof row.image_url === "string" ? row.image_url : null,
-    price_thb:
-      typeof row.price_thb === "number"
-        ? row.price_thb
-        : row.price_thb != null
-          ? Number(row.price_thb)
-          : null,
+    price_thb,
+    original_price_thb,
     shop_name: typeof row.shop_name === "string" ? row.shop_name : null,
     brand_name: typeof row.brand_name === "string" ? row.brand_name : null,
     category_l1:
@@ -248,11 +261,19 @@ async function runExpandedFeedSync(): Promise<CatalogSyncResult> {
   }
 }
 
+export type CatalogSort = "price_asc" | "price_desc" | "popular";
+
+export function normalizeCatalogSort(raw: unknown): CatalogSort {
+  if (raw === "price_desc" || raw === "popular" || raw === "price_asc") return raw;
+  return "price_asc";
+}
+
 /** Paginated browse/search against DB (lean products for Feed page). */
 export async function listLazadaCatalogPage(
   query = "",
   page = 1,
   pageSize = 24,
+  sort: CatalogSort = "price_asc",
 ): Promise<{
   products: LeanCatalogProduct[];
   page: number;
@@ -282,16 +303,31 @@ export async function listLazadaCatalogPage(
   const from = (safePage - 1) * safeSize;
   const to = from + safeSize - 1;
   const cleaned = query.trim();
+  const catalogSort = normalizeCatalogSort(sort);
 
   let builder = supabase
     .from("lazada_products")
     .select(
-      "product_id, title, product_url, image_url, price_thb, shop_name, brand_name, category_l1, sold_count, stock, out_of_stock, offer_type, currency",
+      "product_id, title, product_url, image_url, price_thb, shop_name, brand_name, category_l1, sold_count, stock, out_of_stock, offer_type, currency, raw",
       { count: "exact" },
-    )
-    .order("sold_count", { ascending: false, nullsFirst: false })
-    .order("synced_at", { ascending: false })
-    .range(from, to);
+    );
+
+  if (catalogSort === "price_desc") {
+    builder = builder
+      .order("price_thb", { ascending: false, nullsFirst: false })
+      .order("sold_count", { ascending: false, nullsFirst: false });
+  } else if (catalogSort === "popular") {
+    builder = builder
+      .order("sold_count", { ascending: false, nullsFirst: false })
+      .order("price_thb", { ascending: true, nullsFirst: false });
+  } else {
+    // Default: lowest price first
+    builder = builder
+      .order("price_thb", { ascending: true, nullsFirst: false })
+      .order("sold_count", { ascending: false, nullsFirst: false });
+  }
+
+  builder = builder.range(from, to);
 
   if (cleaned) {
     const safe = cleaned.replace(/[%_,.()]/g, " ").replace(/\s+/g, " ").trim();
@@ -602,11 +638,51 @@ export async function getLazadaCatalogStats(): Promise<{
 }
 
 export async function isRequestUserAdmin(accessToken: string): Promise<boolean> {
+  if (!accessToken) return false;
+
+  // Same source of truth as the admin UI: public.is_admin() (allowlist via JWT email).
+  if (env.supabaseUrl && env.supabaseAnonKey) {
+    try {
+      const userClient = createClient(env.supabaseUrl, env.supabaseAnonKey, {
+        global: { headers: { Authorization: `Bearer ${accessToken}` } },
+        auth: { autoRefreshToken: false, persistSession: false },
+      });
+      const { data: isAdmin, error } = await userClient.rpc("is_admin");
+      if (!error) {
+        if (isAdmin === true) {
+          // Keep profiles.role aligned for display / older checks.
+          const supabase = getSupabaseAdmin();
+          const { data: userData } = await userClient.auth.getUser();
+          if (supabase && userData.user) {
+            void supabase
+              .from("profiles")
+              .update({
+                role: "admin",
+                email: userData.user.email?.trim().toLowerCase() ?? undefined,
+              })
+              .eq("id", userData.user.id);
+          }
+        }
+        return isAdmin === true;
+      }
+      console.warn("[BFM] is_admin RPC failed:", error.message);
+    } catch (err) {
+      console.warn(
+        "[BFM] is_admin RPC error:",
+        err instanceof Error ? err.message : err,
+      );
+    }
+  }
+
+  // Fallback: profiles.role (older deployments / missing anon key)
   const supabase = getSupabaseAdmin();
-  if (!supabase || !accessToken) return false;
+  if (!supabase) return false;
 
   const { data: userData, error: userError } = await supabase.auth.getUser(accessToken);
-  if (userError || !userData.user) return false;
+  if (userError || !userData.user) {
+    console.warn("[BFM] admin auth getUser failed:", userError?.message ?? "no user");
+    return false;
+  }
 
   const { data, error } = await supabase
     .from("profiles")
@@ -614,6 +690,9 @@ export async function isRequestUserAdmin(accessToken: string): Promise<boolean> 
     .eq("id", userData.user.id)
     .maybeSingle();
 
-  if (error) return false;
+  if (error) {
+    console.warn("[BFM] admin profiles.role check failed:", error.message);
+    return false;
+  }
   return data?.role === "admin";
 }

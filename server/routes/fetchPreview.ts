@@ -15,9 +15,9 @@ import {
   getLazadaCatalogStats,
   isRequestUserAdmin,
   listLazadaCatalogPage,
+  normalizeCatalogSort,
   searchLazadaCatalog,
   syncExpandedFeedToDatabase,
-  syncLazadaProductCatalog,
 } from "../lazadaCatalog.js";
 import { splitProductCopy } from "../productCopy.js";
 import { isSupabaseAdminConfigured } from "../supabaseAdmin.js";
@@ -431,27 +431,8 @@ fetchPreviewRouter.post("/lazada-feed-sync", async (req, res) => {
     return;
   }
 
-  const body = req.body as Record<string, unknown>;
-  const rawOfferType = body?.offerType;
-  const offerType =
-    typeof rawOfferType === "number"
-      ? rawOfferType
-      : typeof rawOfferType === "string"
-        ? Number.parseInt(rawOfferType, 10)
-        : 1;
-  const rawMax = body?.maxPages;
-  const maxPages =
-    typeof rawMax === "number"
-      ? rawMax
-      : typeof rawMax === "string"
-        ? Number.parseInt(rawMax, 10)
-        : undefined;
-
-  const result = await syncLazadaProductCatalog({
-    offerType: Number.isFinite(offerType) ? offerType : 1,
-    maxPages:
-      maxPages != null && Number.isFinite(maxPages) ? Math.floor(maxPages) : undefined,
-  });
+  // Expanded feed sync (categories + pages) — same path as live/boot catalog sync.
+  const result = await syncExpandedFeedToDatabase();
 
   if (!result.ok) {
     res.status(503).json({
@@ -516,6 +497,7 @@ fetchPreviewRouter.get("/lazada-feed-catalog", async (req, res) => {
       : typeof rawLimit === "number"
         ? rawLimit
         : 24;
+  const sort = normalizeCatalogSort(req.query.sort);
 
   if (query.length > 120) {
     res.status(400).json({ error: BFM_ERRORS.searchQueryTooLong, products: [], total: 0 });
@@ -527,7 +509,7 @@ fetchPreviewRouter.get("/lazada-feed-catalog", async (req, res) => {
   }
 
   try {
-    let list = await listLazadaCatalogPage(query, page, limit);
+    let list = await listLazadaCatalogPage(query, page, limit, sort);
     let stats = await getLazadaCatalogStats();
 
     // Cold start only when the catalog table is empty — never when a keyword
@@ -542,7 +524,7 @@ fetchPreviewRouter.get("/lazada-feed-catalog", async (req, res) => {
     ) {
       const sync = await syncExpandedFeedToDatabase();
       if (sync.ok && sync.products_upserted > 0) {
-        list = await listLazadaCatalogPage(query, page, limit);
+        list = await listLazadaCatalogPage(query, page, limit, sort);
         stats = await getLazadaCatalogStats();
       }
     }
@@ -563,6 +545,7 @@ fetchPreviewRouter.get("/lazada-feed-catalog", async (req, res) => {
       total: list.total,
       has_more: list.has_more,
       query,
+      sort,
       products: list.products,
       catalog_total: stats.product_count,
       last_sync: stats.last_sync,

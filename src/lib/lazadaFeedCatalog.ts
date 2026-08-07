@@ -8,6 +8,7 @@ export interface FeedCatalogProduct {
   title: string;
   image_url: string | null;
   price_thb: number | null;
+  original_price_thb?: number | null;
   shop_name: string | null;
   brand_name: string | null;
   category_l1: number | null;
@@ -55,12 +56,15 @@ export interface FeedCatalogPage {
   liveSyncMinutes: number;
 }
 
+export type CatalogSort = "price_asc" | "price_desc" | "popular";
+
 /** Paginated affiliate products from DB (optional sync=1 to refresh from Open API). */
 export async function fetchLazadaFeedCatalog(options?: {
   query?: string;
   page?: number;
   limit?: number;
   sync?: boolean;
+  sort?: CatalogSort;
 }): Promise<FeedCatalogPage> {
   const params = new URLSearchParams();
   const query = options?.query?.trim() ?? "";
@@ -69,6 +73,7 @@ export async function fetchLazadaFeedCatalog(options?: {
   if (query) params.set("q", query);
   params.set("page", String(page));
   params.set("limit", String(limit));
+  params.set("sort", options?.sort ?? "price_asc");
   if (options?.sync) params.set("sync", "1");
 
   let res: Response;

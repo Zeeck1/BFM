@@ -23,8 +23,8 @@ async function shouldSkipBootSync(): Promise<{ skip: boolean; reason: string }> 
     return { skip: false, reason: "no successful sync yet" };
   }
   const ageMs = Date.now() - new Date(stats.last_sync.finished_at).getTime();
-  // Reuse live-sync interval as freshness window (minimum 30 minutes).
-  const ttlMs = Math.max(env.lazadaFeedLiveSyncMinutes || 60, 30) * 60_000;
+  // Reuse live-sync interval as freshness window (fallback 20 minutes).
+  const ttlMs = Math.max(env.lazadaFeedLiveSyncMinutes || 20, 1) * 60_000;
   if (ageMs < ttlMs) {
     const ageMin = Math.max(1, Math.round(ageMs / 60_000));
     return {
