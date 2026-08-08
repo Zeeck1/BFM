@@ -70,6 +70,7 @@ import { formatMMK, formatSoldCount, formatTHB } from "../lib/utils";
 import type { ProductPreview, ProductSearchResult } from "../types";
 
 const SEARCH_SORT_OPTIONS: Array<{ value: CatalogSort; label: string }> = [
+  { value: "default", label: "Default" },
   { value: "price_asc", label: "Price: Low to High" },
   { value: "price_desc", label: "Price: High to Low" },
   { value: "popular", label: "Most sold" },
@@ -79,6 +80,7 @@ function sortSearchResults(
   results: ProductSearchResult[],
   sort: CatalogSort,
 ): ProductSearchResult[] {
+  if (sort === "default") return results;
   const copy = [...results];
   if (sort === "price_desc") {
     copy.sort(
@@ -86,7 +88,7 @@ function sortSearchResults(
     );
   } else if (sort === "popular") {
     copy.sort((a, b) => (b.sold_count ?? 0) - (a.sold_count ?? 0));
-  } else {
+  } else if (sort === "price_asc") {
     copy.sort(
       (a, b) => (a.price_thb ?? Number.POSITIVE_INFINITY) - (b.price_thb ?? Number.POSITIVE_INFINITY),
     );
@@ -345,7 +347,7 @@ export function LinkSearchPage() {
   const [searchError, setSearchError] = useState("");
   const [feedMatched, setFeedMatched] = useState(false);
   const [feedMatchCount, setFeedMatchCount] = useState(0);
-  const [searchSort, setSearchSort] = useState<CatalogSort>("price_asc");
+  const [searchSort, setSearchSort] = useState<CatalogSort>("default");
   const [guestSearchLocked, setGuestSearchLocked] = useState(() => hasGuestUsedFreeSearch());
   const [guestLimitModalOpen, setGuestLimitModalOpen] = useState(false);
   const { rate } = useExchangeRate();
@@ -744,6 +746,8 @@ export function LinkSearchPage() {
     if (!trimmed) return;
 
     if (!isFetchableUrl(trimmed)) {
+      // Fresh search uses natural order — filter only applies after the user chooses it.
+      setSearchSort("default");
       if (affiliateMode) {
         if (!user && (guestSearchLocked || hasGuestUsedFreeSearch())) {
           setGuestSearchLocked(true);
@@ -753,7 +757,7 @@ export function LinkSearchPage() {
         setPreview(null);
         setFetchState("idle");
         setFetchError("");
-        await runAffiliateSearch(1, trimmed);
+        await runAffiliateSearch(1, trimmed, "default");
         return;
       }
       if (smartMode) {
@@ -762,7 +766,7 @@ export function LinkSearchPage() {
           setGuestLimitModalOpen(true);
           return;
         }
-        await runProductSearch(trimmed, 1);
+        await runProductSearch(trimmed, 1, "default");
         return;
       }
       return;

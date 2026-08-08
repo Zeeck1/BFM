@@ -1,6 +1,6 @@
 // src/lib/messenger.ts
 
-import { formatMMK } from "./utils";
+import { copyPngBlobToClipboard, renderLinkSlipPngBlob } from "./linkSlip";
 import type { SavedLink } from "../types";
 
 function messengerPageUrl(): string {
@@ -11,8 +11,8 @@ function messengerPageUrl(): string {
 
 function facebookPageUrl(): string {
   const configured = (import.meta.env.VITE_FACEBOOK_PAGE_URL as string | undefined)?.trim();
-  if (!configured) return "https://www.facebook.com/";
-  return configured.replace(/\/$/, "");
+  if (configured) return configured.replace(/\/$/, "");
+  return "https://www.facebook.com/";
 }
 
 function normalizeMessengerUrl(base: string): string {
@@ -48,51 +48,20 @@ function hasConfiguredMessengerTarget(base: string): boolean {
   }
 }
 
-function buildBuyForMeMessage(items: SavedLink[], fromQrReferral = false): string {
-  const header =
-    items.length === 1
-      ? "Hi BFM, I'd like to buy this item:"
-      : `Hi BFM, I'd like to buy these ${items.length} items:`;
-
-  const lines = items.map((item, index) => {
-    const title = item.title ?? "Product link";
-    const price =
-      item.price_mmk != null ? ` (${formatMMK(item.price_mmk)})` : "";
-    const site = item.site_name ? ` [${item.site_name}]` : "";
-    const note = item.notes?.trim() ? `\nNote: ${item.notes.trim()}` : "";
-    return `${index + 1}. ${title}${site}${price}\n${item.url}${note}`;
-  });
-
-  const qrNote = fromQrReferral ? "\n\nI came from refer QR Code" : "";
-  return `${header}${qrNote}\n\n${lines.join("\n\n")}`;
+/** Messenger chat URL (m.me), falling back to Facebook page if unset. */
+export function buyNowMessengerUrl(): string {
+  const raw = messengerPageUrl();
+  const target = raw ? normalizeMessengerUrl(raw) : "";
+  if (hasConfiguredMessengerTarget(target)) return target;
+  return facebookPageUrl();
 }
 
-function isMobileDevice(): boolean {
-  return /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent);
+/** @deprecated use buyNowMessengerUrl */
+export function buyNowFacebookPageUrl(): string {
+  return buyNowMessengerUrl();
 }
 
-async function copyToClipboard(text: string): Promise<boolean> {
-  try {
-    await navigator.clipboard.writeText(text);
-    return true;
-  } catch {
-    try {
-      const textarea = document.createElement("textarea");
-      textarea.value = text;
-      textarea.style.position = "fixed";
-      textarea.style.left = "-9999px";
-      document.body.appendChild(textarea);
-      textarea.select();
-      document.execCommand("copy");
-      document.body.removeChild(textarea);
-      return true;
-    } catch {
-      return false;
-    }
-  }
-}
-
-function showCopiedToast() {
+function showShareToast(message: string) {
   const existing = document.getElementById("bfm-clipboard-toast");
   if (existing) existing.remove();
 
@@ -115,70 +84,51 @@ function showCopiedToast() {
     maxWidth: "340px",
     lineHeight: "1.4",
   });
-  toast.textContent = "Message copied! Paste it in the Messenger chat.";
+  toast.textContent = message;
   document.body.appendChild(toast);
-  setTimeout(() => toast.remove(), 5000);
+  setTimeout(() => toast.remove(), 5500);
 }
 
-function getMessengerTarget(): string {
-  const raw = messengerPageUrl();
-  if (!raw) return "";
-  return normalizeMessengerUrl(raw);
+/**
+ * Open Messenger immediately (click gesture → avoids popup blockers),
+ * then copy the Link Slip image so the user can paste it in the chat.
+ */
+async function openMessengerWithLinkSlip(items: SavedLink[]): Promise<void> {
+  const destination = buyNowMessengerUrl();
+  // Must open during the click gesture — before any await.
+  window.open(destination, "_blank", "noopener,noreferrer");
+  showShareToast("Preparing Link Slip…");
+
+  try {
+    const blob = await renderLinkSlipPngBlob(items);
+    const imageCopied = await copyPngBlobToClipboard(blob);
+    showShareToast(
+      imageCopied
+        ? "Link Slip image copied! Paste it in the Messenger chat."
+        : "Opened Messenger. Download a Link Slip from your wishlist if paste is unavailable.",
+    );
+  } catch (err) {
+    console.warn("[BFM] Link Slip image failed:", err);
+    showShareToast("Opened Messenger. Link Slip image could not be copied — try again.");
+  }
 }
 
-/** Build a Messenger URL for `<a href>` usage (shared list page, etc). */
+/** Build a Messenger URL for `<a href>` usage (privacy/terms, etc). */
 export function buildBuyForMeMessengerUrl(
   _items: SavedLink[],
   _options?: { fromQrReferral?: boolean },
 ): string {
-  const target = getMessengerTarget();
-  const hasTarget = hasConfiguredMessengerTarget(target);
-  return hasTarget ? target : facebookPageUrl();
+  return buyNowMessengerUrl();
 }
 
-/** Open Messenger with the buy-for-me message for the given items. */
+/** Wishlist / item menu — open Messenger + copy Link Slip image. */
 export function openBuyForMeOnMessenger(items: SavedLink[]): void {
   if (items.length === 0) return;
-
-  const message = buildBuyForMeMessage(items);
-  const target = getMessengerTarget();
-  const hasTarget = hasConfiguredMessengerTarget(target);
-  const destination = hasTarget ? target : facebookPageUrl();
-
-  if (isMobileDevice() && navigator.share) {
-    void navigator
-      .share({
-        title: "Buy For Me request",
-        text: message,
-      })
-      .catch(() => {
-        void copyToClipboard(message).then((ok) => {
-          if (ok) showCopiedToast();
-          window.open(destination, "_blank", "noopener,noreferrer");
-        });
-      });
-    return;
-  }
-
-  void copyToClipboard(message).then((ok) => {
-    if (ok) showCopiedToast();
-    window.open(destination, "_blank", "noopener,noreferrer");
-  });
+  void openMessengerWithLinkSlip(items);
 }
 
-/**
- * For SharedListPage `<a>` links — copies message on click, returns href.
- * Attach this as an onClick handler on the anchor element.
- */
-export function copyMessengerMessageOnClick(
-  items: SavedLink[],
-  options?: { fromQrReferral?: boolean },
-): () => void {
-  return () => {
-    if (items.length === 0) return;
-    const message = buildBuyForMeMessage(items, options?.fromQrReferral ?? false);
-    void copyToClipboard(message).then((ok) => {
-      if (ok) showCopiedToast();
-    });
-  };
+/** Shared QR page Buy Now — open Messenger + copy Link Slip image. */
+export function buyNowFromSharedList(items: SavedLink[]): void {
+  if (items.length === 0) return;
+  void openMessengerWithLinkSlip(items);
 }

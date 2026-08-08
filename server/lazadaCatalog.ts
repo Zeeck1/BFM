@@ -261,11 +261,13 @@ async function runExpandedFeedSync(): Promise<CatalogSyncResult> {
   }
 }
 
-export type CatalogSort = "price_asc" | "price_desc" | "popular";
+export type CatalogSort = "default" | "price_asc" | "price_desc" | "popular";
 
 export function normalizeCatalogSort(raw: unknown): CatalogSort {
-  if (raw === "price_desc" || raw === "popular" || raw === "price_asc") return raw;
-  return "price_asc";
+  if (raw === "price_desc" || raw === "popular" || raw === "price_asc" || raw === "default") {
+    return raw;
+  }
+  return "default";
 }
 
 /** Paginated browse/search against DB (lean products for Feed page). */
@@ -273,7 +275,7 @@ export async function listLazadaCatalogPage(
   query = "",
   page = 1,
   pageSize = 24,
-  sort: CatalogSort = "price_asc",
+  sort: CatalogSort = "default",
 ): Promise<{
   products: LeanCatalogProduct[];
   page: number;
@@ -316,15 +318,19 @@ export async function listLazadaCatalogPage(
     builder = builder
       .order("price_thb", { ascending: false, nullsFirst: false })
       .order("sold_count", { ascending: false, nullsFirst: false });
+  } else if (catalogSort === "price_asc") {
+    builder = builder
+      .order("price_thb", { ascending: true, nullsFirst: false })
+      .order("sold_count", { ascending: false, nullsFirst: false });
   } else if (catalogSort === "popular") {
     builder = builder
       .order("sold_count", { ascending: false, nullsFirst: false })
       .order("price_thb", { ascending: true, nullsFirst: false });
   } else {
-    // Default: lowest price first
+    // Default: natural catalog order (no price filter applied until user chooses)
     builder = builder
-      .order("price_thb", { ascending: true, nullsFirst: false })
-      .order("sold_count", { ascending: false, nullsFirst: false });
+      .order("synced_at", { ascending: false, nullsFirst: false })
+      .order("product_id", { ascending: true });
   }
 
   builder = builder.range(from, to);

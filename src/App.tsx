@@ -25,6 +25,7 @@ import { AdminOrdersPage } from "./pages/admin/AdminOrdersPage";
 import { SharedListPage } from "./pages/SharedListPage";
 import { TermsOfServicePage } from "./pages/TermsOfServicePage";
 import { WishlistPage } from "./pages/WishlistPage";
+import { QrCodesPage } from "./pages/QrCodesPage";
 export default function App() {
   const [user, setUser] = useState<User | null>(null);
   const [authOpen, setAuthOpen] = useState(false);
@@ -55,6 +56,7 @@ export default function App() {
         <Route element={<AppLayout user={user} onSignIn={openAuth} />}>
           <Route index element={<LinkSearchPage />} />
           <Route path="wishlist" element={<WishlistPage />} />
+          <Route path="qr-codes" element={<QrCodesPage />} />
           <Route path="our-service" element={<OurServicePage />} />
           <Route path="privacy" element={<PrivacyPolicyPage />} />
           <Route path="terms" element={<TermsOfServicePage />} />

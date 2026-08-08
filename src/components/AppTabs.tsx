@@ -1,9 +1,10 @@
-import { Briefcase, Heart, Link2 } from "lucide-react";
+import { Briefcase, Heart, Link2, QrCode } from "lucide-react";
 import { NavLink } from "react-router-dom";
 
 export const APP_TABS = [
   { to: "/", label: "Add Link", shortLabel: "Add", icon: Link2, end: true },
   { to: "/wishlist", label: "Wishlist", shortLabel: "Saved", icon: Heart, end: false },
+  { to: "/qr-codes", label: "QR Codes", shortLabel: "QR", icon: QrCode, end: false },
   {
     to: "/our-service",
     label: "Our Service",
@@ -89,7 +90,7 @@ export function AppTabs({ wishlistCount = 0, variant = "desktop", className = ""
           {({ isActive }) => (
             <>
               <Icon className="h-3.5 w-3.5 shrink-0 xl:h-4 xl:w-4" strokeWidth={isActive ? 2.5 : 2} />
-              {to === "/our-service" ? (
+              {to === "/our-service" || to === "/qr-codes" ? (
                 <>
                   <span className="hidden xl:inline">{label}</span>
                   <span className="xl:hidden">{shortLabel}</span>

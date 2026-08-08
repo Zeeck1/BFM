@@ -12,7 +12,7 @@ import { BrandLogo } from "../components/BrandLogo";
 import { SiteAvatar } from "../components/SiteAvatar";
 import { ImageLightbox } from "../components/ImageLightbox";
 import { fetchSharedList, timeRemaining, type SharedList } from "../lib/shareList";
-import { buildBuyForMeMessengerUrl, copyMessengerMessageOnClick } from "../lib/messenger";
+import { buyNowFromSharedList } from "../lib/messenger";
 import { formatMMK, formatTHB } from "../lib/utils";
 import type { SavedLink } from "../types";
 
@@ -116,16 +116,14 @@ function SharedItemRow({ item, index }: { item: SavedLink; index: number }) {
               >
                 <ExternalLink className="h-4 w-4" />
               </a>
-              <a
-                href={buildBuyForMeMessengerUrl([item], { fromQrReferral: true })}
-                onClick={copyMessengerMessageOnClick([item], { fromQrReferral: true })}
-                target="_blank"
-                rel="noopener noreferrer"
+              <button
+                type="button"
+                onClick={() => buyNowFromSharedList([item])}
                 className="flex items-center gap-1.5 rounded-xl bg-[#0084FF] px-3.5 py-2 text-xs font-bold text-white shadow-sm transition hover:bg-[#0078eb] sm:px-4 sm:text-sm"
               >
                 <MessageCircle className="h-4 w-4" />
                 Buy Now
-              </a>
+              </button>
             </div>
           </div>
         </div>
@@ -258,7 +256,6 @@ export function SharedListPage() {
 
   const ownerLabel = list.owner_name ? `${list.owner_name}'s Favourites` : "Shared Favourites";
   const ownerInitial = list.owner_name?.trim().charAt(0).toUpperCase() ?? "?";
-  const allMessengerUrl = buildBuyForMeMessengerUrl(list.items, { fromQrReferral: true });
   const showStickyBar = list.items.length > 0;
 
   return (
@@ -335,16 +332,14 @@ export function SharedListPage() {
                 <p className="text-xs text-slate-500">Est. {formatMMK(totalMmk)}</p>
               )}
             </div>
-            <a
-              href={allMessengerUrl}
-              onClick={copyMessengerMessageOnClick(list.items, { fromQrReferral: true })}
-              target="_blank"
-              rel="noopener noreferrer"
+            <button
+              type="button"
+              onClick={() => buyNowFromSharedList(list.items)}
               className="flex shrink-0 items-center gap-2 rounded-xl bg-[#0084FF] px-5 py-3 text-sm font-bold text-white shadow-lg shadow-[#0084FF]/25 transition hover:bg-[#0078eb]"
             >
               <MessageCircle className="h-5 w-5" />
               {list.items.length === 1 ? "Buy Now" : "Buy All"}
-            </a>
+            </button>
           </div>
         </div>
       )}

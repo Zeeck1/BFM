@@ -117,6 +117,38 @@ export async function fetchSharedList(id: string): Promise<SharedList | null> {
   return toSharedList(data as Record<string, unknown>);
 }
 
+/** All non-expired QR / shared lists for the signed-in user (newest first). */
+export async function listUserValidSharedLists(userId: string): Promise<SharedList[]> {
+  const { data, error } = await supabase
+    .from("shared_lists")
+    .select("*")
+    .eq("user_id", userId)
+    .gt("expires_at", new Date().toISOString())
+    .order("created_at", { ascending: false });
+
+  if (error) {
+    console.error("[shareList] listUserValidSharedLists failed:", error.message);
+    return [];
+  }
+
+  return (data ?? []).map((row) => toSharedList(row as Record<string, unknown>));
+}
+
+/** Revoke a share so the QR / link stops working. */
+export async function deleteSharedList(id: string, userId: string): Promise<boolean> {
+  const { error } = await supabase
+    .from("shared_lists")
+    .delete()
+    .eq("id", id)
+    .eq("user_id", userId);
+
+  if (error) {
+    console.error("[shareList] deleteSharedList failed:", error.message);
+    return false;
+  }
+  return true;
+}
+
 function toSnapshot(item: SavedLink) {
   return {
     id: item.id,
@@ -258,4 +290,15 @@ export function timeRemaining(list: SharedList): string {
   if (hours > 0) return `${hours}h left`;
   const mins = Math.ceil(ms / 60_000);
   return `${mins}m left`;
+}
+
+/** Date + time when the QR / shared list was generated. */
+export function formatQrGeneratedAt(value: string | null | undefined): string {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  return date.toLocaleString("en-US", {
+    dateStyle: "medium",
+    timeStyle: "short",
+  });
 }

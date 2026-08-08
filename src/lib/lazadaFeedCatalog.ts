@@ -56,7 +56,7 @@ export interface FeedCatalogPage {
   liveSyncMinutes: number;
 }
 
-export type CatalogSort = "price_asc" | "price_desc" | "popular";
+export type CatalogSort = "default" | "price_asc" | "price_desc" | "popular";
 
 /** Paginated affiliate products from DB (optional sync=1 to refresh from Open API). */
 export async function fetchLazadaFeedCatalog(options?: {
@@ -73,7 +73,7 @@ export async function fetchLazadaFeedCatalog(options?: {
   if (query) params.set("q", query);
   params.set("page", String(page));
   params.set("limit", String(limit));
-  params.set("sort", options?.sort ?? "price_asc");
+  params.set("sort", options?.sort ?? "default");
   if (options?.sync) params.set("sync", "1");
 
   let res: Response;

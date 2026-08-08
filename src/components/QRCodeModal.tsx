@@ -11,6 +11,8 @@ interface QRCodeModalProps {
   avatarUrl?: string | null;
   itemCount: number;
   expiresIn?: string;
+  /** Formatted generate date/time, e.g. "Aug 8, 2026, 9:14 PM" */
+  generatedAt?: string;
 }
 
 function loadImage(src: string): Promise<HTMLImageElement> {
@@ -67,6 +69,7 @@ export function QRCodeModal({
   avatarUrl,
   itemCount,
   expiresIn,
+  generatedAt,
 }: QRCodeModalProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [copied, setCopied] = useState(false);
@@ -199,6 +202,11 @@ export function QRCodeModal({
             <p className="text-xs text-slate-500">
               {itemCount} item{itemCount !== 1 ? "s" : ""} &middot; Scan to view &amp; buy
             </p>
+            {generatedAt && (
+              <p className="mt-1.5 text-[11px] font-medium text-slate-500">
+                Generated {generatedAt}
+              </p>
+            )}
             {expiresIn && (
               <p className="mt-1.5 inline-flex items-center gap-1 rounded-full bg-amber-50 px-2.5 py-1 text-[11px] font-semibold text-amber-700">
                 <Clock className="h-3 w-3" />

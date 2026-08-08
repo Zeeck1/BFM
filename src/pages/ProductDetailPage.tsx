@@ -27,7 +27,12 @@ import { userAvatarUrl, userDisplayName } from "../lib/auth";
 import { BFM_ERRORS, toBfmUserError } from "../lib/bfmMessages";
 import { fetchPreview } from "../lib/preview";
 import { splitProductCopy } from "../lib/productCopy";
-import { getOrCreateSharedList, shareUrl, timeRemaining } from "../lib/shareList";
+import {
+  formatQrGeneratedAt,
+  getOrCreateSharedList,
+  shareUrl,
+  timeRemaining,
+} from "../lib/shareList";
 import { formatMMK, formatSoldCount, formatTHB } from "../lib/utils";
 import type { ProductPreview, ProductSearchResult, SavedLink } from "../types";
 
@@ -64,6 +69,7 @@ export function ProductDetailPage() {
   const [qrOpen, setQrOpen] = useState(false);
   const [qrShareUrl, setQrShareUrl] = useState("");
   const [qrExpiresIn, setQrExpiresIn] = useState("");
+  const [qrGeneratedAt, setQrGeneratedAt] = useState("");
   const [creatingQr, setCreatingQr] = useState(false);
   const wasSignedIn = useRef(Boolean(user));
 
@@ -207,6 +213,7 @@ export function ProductDetailPage() {
     if (!shared) return;
     setQrShareUrl(shareUrl(shared.id));
     setQrExpiresIn(timeRemaining(shared));
+    setQrGeneratedAt(formatQrGeneratedAt(shared.created_at));
     setQrOpen(true);
   }
 
@@ -528,6 +535,7 @@ export function ProductDetailPage() {
         avatarUrl={user ? userAvatarUrl(user) : null}
         itemCount={1}
         expiresIn={qrExpiresIn}
+        generatedAt={qrGeneratedAt}
       />
       {lightboxOpen && product.image_url && (
         <ImageLightbox src={product.image_url} alt={product.title ?? "Product"} onClose={() => setLightboxOpen(false)} />

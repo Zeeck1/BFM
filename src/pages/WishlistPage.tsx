@@ -23,7 +23,12 @@ import { useExchangeRate } from "../hooks/useExchangeRate";
 import { userAvatarUrl, userDisplayName } from "../lib/auth";
 import { openBuyForMeOnMessenger } from "../lib/messenger";
 import { matchesSavedLinkSearch } from "../lib/savedLinkSearch";
-import { getOrCreateSharedList, shareUrl as buildShareUrl, timeRemaining } from "../lib/shareList";
+import {
+  formatQrGeneratedAt,
+  getOrCreateSharedList,
+  shareUrl as buildShareUrl,
+  timeRemaining,
+} from "../lib/shareList";
 import { formatMMK, formatTHB } from "../lib/utils";
 import type { SavedLink } from "../types";
 
@@ -98,6 +103,7 @@ export function WishlistPage() {
   const [qrOpen, setQrOpen] = useState(false);
   const [qrShareUrl, setQrShareUrl] = useState("");
   const [qrExpiresIn, setQrExpiresIn] = useState("");
+  const [qrGeneratedAt, setQrGeneratedAt] = useState("");
   const [qrLoading, setQrLoading] = useState(false);
   const [removeConfirm, setRemoveConfirm] = useState(false);
   const [removing, setRemoving] = useState(false);
@@ -160,6 +166,7 @@ export function WishlistPage() {
     if (shared) {
       setQrShareUrl(buildShareUrl(shared.id));
       setQrExpiresIn(timeRemaining(shared));
+      setQrGeneratedAt(formatQrGeneratedAt(shared.created_at));
       setQrOpen(true);
     }
   }
@@ -469,6 +476,7 @@ export function WishlistPage() {
         avatarUrl={user ? userAvatarUrl(user) : null}
         itemCount={selectedItems.length}
         expiresIn={qrExpiresIn}
+        generatedAt={qrGeneratedAt}
       />
     </div>
   );
