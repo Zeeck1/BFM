@@ -61,12 +61,56 @@ export function buyNowFacebookPageUrl(): string {
   return buyNowMessengerUrl();
 }
 
-function showShareToast(message: string) {
-  const existing = document.getElementById("bfm-clipboard-toast");
-  if (existing) existing.remove();
+const OVERLAY_ID = "bfm-link-slip-preparing";
+const TOAST_ID = "bfm-clipboard-toast";
+
+function showPreparingOverlay() {
+  hidePreparingOverlay();
+  const overlay = document.createElement("div");
+  overlay.id = OVERLAY_ID;
+  Object.assign(overlay.style, {
+    position: "fixed",
+    inset: "0",
+    zIndex: "100000",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    background: "rgba(15, 23, 42, 0.45)",
+    backdropFilter: "blur(4px)",
+    padding: "24px",
+  });
+  overlay.innerHTML = `
+    <div style="
+      width:100%;max-width:320px;border-radius:16px;background:#fff;
+      box-shadow:0 20px 40px rgba(15,23,42,0.25);padding:28px 24px;text-align:center;
+      font-family:system-ui,-apple-system,sans-serif;
+    ">
+      <div style="
+        width:40px;height:40px;margin:0 auto 14px;border-radius:999px;
+        border:3px solid #e2e8f0;border-top-color:#4f46e5;
+        animation:bfm-spin 0.8s linear infinite;
+      "></div>
+      <p style="margin:0;font-size:15px;font-weight:700;color:#0f172a">Preparing Link Slip…</p>
+      <p style="margin:8px 0 0;font-size:13px;line-height:1.4;color:#64748b">
+        Generating your product image. Messenger opens when it is ready to paste.
+      </p>
+    </div>
+    <style>
+      @keyframes bfm-spin { to { transform: rotate(360deg); } }
+    </style>
+  `;
+  document.body.appendChild(overlay);
+}
+
+function hidePreparingOverlay() {
+  document.getElementById(OVERLAY_ID)?.remove();
+}
+
+function showShareToast(message: string, options?: { messengerUrl?: string }) {
+  document.getElementById(TOAST_ID)?.remove();
 
   const toast = document.createElement("div");
-  toast.id = "bfm-clipboard-toast";
+  toast.id = TOAST_ID;
   Object.assign(toast.style, {
     position: "fixed",
     bottom: "24px",
@@ -84,33 +128,70 @@ function showShareToast(message: string) {
     maxWidth: "340px",
     lineHeight: "1.4",
   });
-  toast.textContent = message;
+
+  if (options?.messengerUrl) {
+    toast.innerHTML = "";
+    const text = document.createElement("p");
+    text.style.margin = "0 0 10px";
+    text.textContent = message;
+    toast.appendChild(text);
+    const link = document.createElement("a");
+    link.href = options.messengerUrl;
+    link.target = "_blank";
+    link.rel = "noopener noreferrer";
+    link.textContent = "Open Messenger";
+    Object.assign(link.style, {
+      display: "inline-block",
+      background: "#0084FF",
+      color: "#fff",
+      textDecoration: "none",
+      borderRadius: "8px",
+      padding: "8px 14px",
+      fontSize: "13px",
+      fontWeight: "700",
+    });
+    toast.appendChild(link);
+  } else {
+    toast.textContent = message;
+  }
+
   document.body.appendChild(toast);
-  setTimeout(() => toast.remove(), 5500);
+  setTimeout(() => toast.remove(), options?.messengerUrl ? 12_000 : 5500);
 }
 
 /**
- * Open Messenger immediately (click gesture → avoids popup blockers),
- * then copy the Link Slip image so the user can paste it in the chat.
+ * Prepare Link Slip on the current page, then open Messenger once ready to paste.
  */
 async function openMessengerWithLinkSlip(items: SavedLink[]): Promise<void> {
   const destination = buyNowMessengerUrl();
-  // Must open during the click gesture — before any await.
-  window.open(destination, "_blank", "noopener,noreferrer");
-  showShareToast("Preparing Link Slip…");
+  showPreparingOverlay();
 
+  let imageCopied = false;
   try {
     const blob = await renderLinkSlipPngBlob(items);
-    const imageCopied = await copyPngBlobToClipboard(blob);
-    showShareToast(
-      imageCopied
-        ? "Link Slip image copied! Paste it in the Messenger chat."
-        : "Opened Messenger. Download a Link Slip from your wishlist if paste is unavailable.",
-    );
+    imageCopied = await copyPngBlobToClipboard(blob);
   } catch (err) {
     console.warn("[BFM] Link Slip image failed:", err);
-    showShareToast("Opened Messenger. Link Slip image could not be copied — try again.");
+  } finally {
+    hidePreparingOverlay();
   }
+
+  const opened = window.open(destination, "_blank", "noopener,noreferrer");
+  if (!opened) {
+    showShareToast(
+      imageCopied
+        ? "Link Slip ready. Tap below to open Messenger and paste."
+        : "Could not open Messenger automatically.",
+      { messengerUrl: destination },
+    );
+    return;
+  }
+
+  showShareToast(
+    imageCopied
+      ? "Link Slip ready — paste it in the Messenger chat."
+      : "Opened Messenger. Download a Link Slip from your wishlist if paste is unavailable.",
+  );
 }
 
 /** Build a Messenger URL for `<a href>` usage (privacy/terms, etc). */
@@ -121,13 +202,13 @@ export function buildBuyForMeMessengerUrl(
   return buyNowMessengerUrl();
 }
 
-/** Wishlist / item menu — open Messenger + copy Link Slip image. */
+/** Wishlist / item menu — prepare Link Slip on this page, then open Messenger. */
 export function openBuyForMeOnMessenger(items: SavedLink[]): void {
   if (items.length === 0) return;
   void openMessengerWithLinkSlip(items);
 }
 
-/** Shared QR page Buy Now — open Messenger + copy Link Slip image. */
+/** Shared QR page Buy Now — prepare Link Slip on this page, then open Messenger. */
 export function buyNowFromSharedList(items: SavedLink[]): void {
   if (items.length === 0) return;
   void openMessengerWithLinkSlip(items);
