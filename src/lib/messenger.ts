@@ -3,32 +3,35 @@
 import { copyPngBlobToClipboard, renderLinkSlipPngBlob } from "./linkSlip";
 import type { SavedLink } from "../types";
 
+/** Official BFM Facebook / Messenger page ID (works in production even if VITE_* env is missing). */
+const BFM_FACEBOOK_PAGE_ID = "1208338659022658";
+const DEFAULT_MESSENGER_URL = `https://m.me/${BFM_FACEBOOK_PAGE_ID}`;
+
 function messengerPageUrl(): string {
   const configured = (import.meta.env.VITE_MESSENGER_PAGE_URL as string | undefined)?.trim();
   if (configured) return configured.replace(/\/$/, "");
-  return "";
-}
-
-function facebookPageUrl(): string {
-  const configured = (import.meta.env.VITE_FACEBOOK_PAGE_URL as string | undefined)?.trim();
-  if (configured) return configured.replace(/\/$/, "");
-  return "https://www.facebook.com/";
+  return DEFAULT_MESSENGER_URL;
 }
 
 function normalizeMessengerUrl(base: string): string {
-  const pageMatch = base.match(/facebook\.com\/([^/?#]+)/i);
+  const trimmed = base.trim();
+  if (/^\d+$/.test(trimmed)) {
+    return `https://m.me/${trimmed}`;
+  }
+
+  const pageMatch = trimmed.match(/facebook\.com\/([^/?#]+)/i);
   if (
     pageMatch &&
     pageMatch[1] !== "profile.php" &&
     pageMatch[1] !== "pages" &&
-    !base.includes("m.me/")
+    !trimmed.includes("m.me/")
   ) {
     return `https://m.me/${pageMatch[1]}`;
   }
-  if (!base.includes("m.me/") && !base.includes("facebook.com")) {
-    return `https://m.me/${base.replace(/^https?:\/\//, "")}`;
+  if (!trimmed.includes("m.me/") && !trimmed.includes("facebook.com")) {
+    return `https://m.me/${trimmed.replace(/^https?:\/\//, "")}`;
   }
-  return base;
+  return trimmed;
 }
 
 function hasConfiguredMessengerTarget(base: string): boolean {
@@ -48,12 +51,11 @@ function hasConfiguredMessengerTarget(base: string): boolean {
   }
 }
 
-/** Messenger chat URL (m.me), falling back to Facebook page if unset. */
+/** Messenger chat URL — always resolves to BFM page ID unless env overrides. */
 export function buyNowMessengerUrl(): string {
-  const raw = messengerPageUrl();
-  const target = raw ? normalizeMessengerUrl(raw) : "";
+  const target = normalizeMessengerUrl(messengerPageUrl());
   if (hasConfiguredMessengerTarget(target)) return target;
-  return facebookPageUrl();
+  return DEFAULT_MESSENGER_URL;
 }
 
 /** @deprecated use buyNowMessengerUrl */
