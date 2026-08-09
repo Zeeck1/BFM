@@ -41,7 +41,7 @@ export interface AffiliateSearchPage {
 export async function searchAffiliateCatalog(
   query: string,
   page = 1,
-  sort: CatalogSort = "default",
+  sort: CatalogSort = "popular",
 ): Promise<AffiliateSearchPage> {
   const data = await fetchLazadaFeedCatalog({
     query,
