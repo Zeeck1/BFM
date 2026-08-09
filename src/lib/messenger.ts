@@ -3,64 +3,19 @@
 import { copyPngBlobToClipboard, renderLinkSlipPngBlob } from "./linkSlip";
 import type { SavedLink } from "../types";
 
-/** Official BFM Facebook / Messenger page ID (works in production even if VITE_* env is missing). */
-const BFM_FACEBOOK_PAGE_ID = "1208338659022658";
-const DEFAULT_MESSENGER_URL = `https://m.me/${BFM_FACEBOOK_PAGE_ID}`;
+/** Official BFM Facebook / Messenger page ID — always used (no env override). */
+export const BFM_FACEBOOK_PAGE_ID = "1208338659022658";
+const MESSENGER_URL = `https://m.me/${BFM_FACEBOOK_PAGE_ID}`;
+const FACEBOOK_PAGE_URL = `https://www.facebook.com/${BFM_FACEBOOK_PAGE_ID}`;
 
-function messengerPageUrl(): string {
-  const configured = (import.meta.env.VITE_MESSENGER_PAGE_URL as string | undefined)?.trim();
-  if (configured) return configured.replace(/\/$/, "");
-  return DEFAULT_MESSENGER_URL;
-}
-
-function normalizeMessengerUrl(base: string): string {
-  const trimmed = base.trim();
-  if (/^\d+$/.test(trimmed)) {
-    return `https://m.me/${trimmed}`;
-  }
-
-  const pageMatch = trimmed.match(/facebook\.com\/([^/?#]+)/i);
-  if (
-    pageMatch &&
-    pageMatch[1] !== "profile.php" &&
-    pageMatch[1] !== "pages" &&
-    !trimmed.includes("m.me/")
-  ) {
-    return `https://m.me/${pageMatch[1]}`;
-  }
-  if (!trimmed.includes("m.me/") && !trimmed.includes("facebook.com")) {
-    return `https://m.me/${trimmed.replace(/^https?:\/\//, "")}`;
-  }
-  return trimmed;
-}
-
-function hasConfiguredMessengerTarget(base: string): boolean {
-  if (!base) return false;
-  try {
-    const url = new URL(base);
-    const host = url.hostname.toLowerCase();
-    if (host === "m.me" || host.endsWith(".m.me")) {
-      return url.pathname.replace(/\//g, "").length > 0;
-    }
-    if (host.includes("facebook.com")) {
-      return url.pathname.replace(/\//g, "").length > 0;
-    }
-    return false;
-  } catch {
-    return false;
-  }
-}
-
-/** Messenger chat URL — always resolves to BFM page ID unless env overrides. */
+/** Messenger chat URL — always page ID 1208338659022658. */
 export function buyNowMessengerUrl(): string {
-  const target = normalizeMessengerUrl(messengerPageUrl());
-  if (hasConfiguredMessengerTarget(target)) return target;
-  return DEFAULT_MESSENGER_URL;
+  return MESSENGER_URL;
 }
 
-/** @deprecated use buyNowMessengerUrl */
+/** Facebook page URL — always page ID 1208338659022658. */
 export function buyNowFacebookPageUrl(): string {
-  return buyNowMessengerUrl();
+  return FACEBOOK_PAGE_URL;
 }
 
 const OVERLAY_ID = "bfm-link-slip-preparing";
