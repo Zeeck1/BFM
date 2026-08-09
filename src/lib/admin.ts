@@ -103,19 +103,36 @@ export async function loadAdminDashboard() {
 
   // Migration 020 adds avatar_url; 024 adds smart_search_enabled.
   // Keep Admin usable if those migrations are not applied yet.
-  let profilesResult = profilesWithAvatarResult;
+  let profilesResult: {
+    data: AdminProfile[] | null;
+    error: { message?: string; code?: string } | null;
+  } = {
+    data: (profilesWithAvatarResult.data ?? null) as AdminProfile[] | null,
+    error: profilesWithAvatarResult.error,
+  };
+
   if (profilesWithAvatarResult.error?.code === "42703") {
-    profilesResult = await supabase
+    const withoutSmartSearch = await supabase
       .from("profiles")
       .select("id,email,username,full_name,avatar_url,phone,address,role,created_at")
       .order("created_at", { ascending: false })
       .range(0, PAGE_SIZE - 1);
-    if (profilesResult.error?.code === "42703") {
-      profilesResult = await supabase
+
+    if (withoutSmartSearch.error?.code === "42703") {
+      const minimal = await supabase
         .from("profiles")
         .select("id,email,username,full_name,phone,address,role,created_at")
         .order("created_at", { ascending: false })
         .range(0, PAGE_SIZE - 1);
+      profilesResult = {
+        data: (minimal.data ?? null) as AdminProfile[] | null,
+        error: minimal.error,
+      };
+    } else {
+      profilesResult = {
+        data: (withoutSmartSearch.data ?? null) as AdminProfile[] | null,
+        error: withoutSmartSearch.error,
+      };
     }
   }
 
@@ -124,7 +141,7 @@ export async function loadAdminDashboard() {
   if (firstError) throw asError(firstError, "Could not load admin data.");
 
   return {
-    profiles: (profilesResult.data ?? []) as AdminProfile[],
+    profiles: profilesResult.data ?? [],
     savedLinks: (savedLinksResult.data ?? []) as SavedLink[],
     sharedLists: (sharedListsResult.data ?? []) as AdminSharedList[],
     orders: (ordersResult.data ?? []) as AdminOrder[],
