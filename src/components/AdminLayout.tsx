@@ -85,8 +85,8 @@ function AdminShell() {
 
   return (
     <div className="min-h-screen bg-[radial-gradient(ellipse_at_top_left,_#eef2ff_0%,_#f8fafc_40%,_#f1f5f9_100%)] text-slate-900">
-      <div className="mx-auto flex min-h-screen max-w-[1440px]">
-        <aside className="hidden w-64 shrink-0 border-r border-slate-200/80 bg-white/80 backdrop-blur-xl lg:sticky lg:top-0 lg:flex lg:h-screen lg:flex-col">
+      <div className="flex min-h-screen w-full">
+        <aside className="hidden w-64 shrink-0 border-r border-slate-200/80 bg-white/90 backdrop-blur-xl lg:sticky lg:top-0 lg:flex lg:h-screen lg:flex-col">
           <AdminBrand />
           <div className="min-h-0 flex-1 overflow-y-auto">
             <AdminNav onNavigate={() => setMobileOpen(false)} />
@@ -102,8 +102,8 @@ function AdminShell() {
               className="absolute inset-0 bg-slate-900/40"
               onClick={() => setMobileOpen(false)}
             />
-            <aside className="relative z-50 flex h-full w-72 flex-col bg-white shadow-2xl">
-              <div className="flex items-center justify-between border-b border-slate-100 px-4 py-4">
+            <aside className="relative z-50 flex h-full w-[min(18rem,100%)] flex-col bg-white shadow-2xl">
+              <div className="flex items-center justify-between border-b border-slate-100 px-3 py-3 sm:px-4 sm:py-4">
                 <AdminBrand compact />
                 <button
                   type="button"
@@ -122,41 +122,41 @@ function AdminShell() {
         )}
 
         <div className="flex min-w-0 flex-1 flex-col">
-          <header className="sticky top-0 z-30 flex items-center justify-between gap-3 border-b border-slate-200/80 bg-white/80 px-4 py-3 backdrop-blur-xl sm:px-6 lg:hidden">
-            <div className="flex items-center gap-3">
+          <header className="sticky top-0 z-30 flex w-full items-center justify-between gap-2 border-b border-slate-200/80 bg-white/90 px-3 py-2 backdrop-blur-xl sm:gap-3 sm:px-4 sm:py-2.5 lg:hidden">
+            <div className="flex min-w-0 flex-1 items-center gap-2">
               <button
                 type="button"
                 onClick={() => setMobileOpen(true)}
-                className="rounded-xl border border-slate-200 bg-white p-2 text-slate-700"
+                className="shrink-0 rounded-xl border border-slate-200 bg-white p-2 text-slate-700"
+                aria-label="Open menu"
               >
                 <Menu className="h-5 w-5" />
               </button>
-              <div>
-                <p className="text-sm font-bold text-slate-900">Admin Dashboard</p>
-                <p className="text-[11px] text-slate-500">Admin</p>
-              </div>
+              <AdminBrand compact header />
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
               <button
                 type="button"
                 onClick={() => void refresh()}
                 disabled={loading}
-                className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 disabled:opacity-60"
+                className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white p-2 text-xs font-semibold text-slate-700 disabled:opacity-60 sm:px-3 sm:py-2"
+                aria-label="Refresh data"
               >
                 <RefreshCw className={`h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`} />
-                Refresh
+                <span className="hidden sm:inline">Refresh</span>
               </button>
               <Link
                 to="/"
-                className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700"
+                className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white p-2 text-xs font-semibold text-slate-700 sm:px-3 sm:py-2"
+                aria-label="Back to app"
               >
                 <ArrowLeft className="h-3.5 w-3.5" />
-                App
+                <span className="hidden sm:inline">App</span>
               </Link>
             </div>
           </header>
 
-          <main className="flex-1 px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
+          <main className="w-full flex-1 px-3 py-4 sm:px-4 sm:py-5 lg:px-6 lg:py-6">
             {loading && !data ? (
               <div className="flex min-h-[50vh] items-center justify-center gap-2 text-sm font-medium text-slate-500">
                 <Loader2 className="h-5 w-5 animate-spin" />
@@ -172,16 +172,44 @@ function AdminShell() {
   );
 }
 
-function AdminBrand({ compact = false }: { compact?: boolean }) {
+function AdminBrand({
+  compact = false,
+  header = false,
+}: {
+  compact?: boolean;
+  header?: boolean;
+}) {
   return (
-    <div className={`border-b border-slate-100 ${compact ? "" : "px-5 py-6"}`}>
-      <div className="flex items-center gap-3">
-        <div className="flex h-11 w-11 items-center justify-center overflow-hidden rounded-2xl bg-white shadow-lg shadow-slate-900/10 ring-1 ring-slate-200">
-          <BrandLogo className="h-9 w-9" />
+    <div
+      className={
+        header
+          ? "min-w-0"
+          : `border-b border-slate-100 ${compact ? "" : "px-3 py-4 sm:px-4 sm:py-5"}`
+      }
+    >
+      <div className={`flex min-w-0 items-center ${header ? "gap-2" : "gap-2 sm:gap-2.5"}`}>
+        <div
+          className={`flex shrink-0 items-center justify-center overflow-hidden rounded-xl bg-white ring-1 ring-slate-200 sm:rounded-2xl ${
+            header ? "h-9 w-9 sm:h-10 sm:w-10" : compact ? "h-10 w-10" : "h-10 w-10 sm:h-11 sm:w-11"
+          }`}
+        >
+          <BrandLogo className="h-full w-full !object-cover" />
         </div>
-        <div>
-          <p className="text-sm font-bold tracking-tight text-slate-900">Admin Dashboard</p>
-          <p className="text-[11px] font-medium text-slate-500">Admin</p>
+        <div className="min-w-0">
+          <p
+            className={`truncate font-bold tracking-tight text-slate-900 ${
+              header ? "text-xs sm:text-sm" : "text-sm"
+            }`}
+          >
+            Admin Dashboard
+          </p>
+          <p
+            className={`truncate font-medium text-slate-500 ${
+              header ? "text-[10px] sm:text-[11px]" : "text-[11px]"
+            }`}
+          >
+            Admin
+          </p>
         </div>
       </div>
     </div>

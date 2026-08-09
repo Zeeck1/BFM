@@ -32,7 +32,7 @@ export function Navbar({ user, onAuthClick, wishlistCount = 0 }: NavbarProps) {
           <div className="hidden min-w-0 leading-none sm:block">
             <p className="truncate text-sm font-bold tracking-tight text-slate-900">Buy For Me</p>
             <p className="text-[9px] font-medium uppercase tracking-[0.15em] text-slate-400">
-              Myanmar · Thailand
+              Thailand . Myanmar
             </p>
           </div>
         </Link>

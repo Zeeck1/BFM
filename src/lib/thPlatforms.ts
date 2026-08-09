@@ -81,6 +81,13 @@ export const PLATFORM_CATEGORIES: PlatformCategory[] = [
         logo: "https://www.google.com/s2/favicons?domain=watsons.co.th&sz=128",
         color: "#00A0A8",
       },
+      {
+        id: "shein-th",
+        name: "SHEIN Thailand",
+        url: "https://th.shein.com",
+        logo: "https://www.google.com/s2/favicons?domain=th.shein.com&sz=128",
+        color: "#000000",
+      },
     ],
   },
   {

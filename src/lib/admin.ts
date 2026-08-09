@@ -12,6 +12,8 @@ export interface AdminProfile {
   phone?: string | null;
   address?: string | null;
   role: "admin" | "user";
+  /** Granted Smart Search access (admins always allowed regardless). */
+  smart_search_enabled?: boolean;
   created_at: string;
 }
 
@@ -74,7 +76,7 @@ export async function loadAdminDashboard() {
   const [profilesWithAvatarResult, savedLinksResult, sharedListsResult, ordersResult, searchEventsResult] = await Promise.all([
     supabase
       .from("profiles")
-      .select("id,email,username,full_name,avatar_url,phone,address,role,created_at")
+      .select("id,email,username,full_name,avatar_url,phone,address,role,smart_search_enabled,created_at")
       .order("created_at", { ascending: false })
       .range(0, PAGE_SIZE - 1),
     supabase
@@ -99,15 +101,23 @@ export async function loadAdminDashboard() {
       .range(0, PAGE_SIZE - 1),
   ]);
 
-  // Migration 020 adds avatar_url. Keep the Admin Dashboard usable for
-  // environments where that migration has not been applied yet.
-  const profilesResult = profilesWithAvatarResult.error?.code === "42703"
-    ? await supabase
+  // Migration 020 adds avatar_url; 024 adds smart_search_enabled.
+  // Keep Admin usable if those migrations are not applied yet.
+  let profilesResult = profilesWithAvatarResult;
+  if (profilesWithAvatarResult.error?.code === "42703") {
+    profilesResult = await supabase
+      .from("profiles")
+      .select("id,email,username,full_name,avatar_url,phone,address,role,created_at")
+      .order("created_at", { ascending: false })
+      .range(0, PAGE_SIZE - 1);
+    if (profilesResult.error?.code === "42703") {
+      profilesResult = await supabase
         .from("profiles")
         .select("id,email,username,full_name,phone,address,role,created_at")
         .order("created_at", { ascending: false })
-        .range(0, PAGE_SIZE - 1)
-    : profilesWithAvatarResult;
+        .range(0, PAGE_SIZE - 1);
+    }
+  }
 
   const firstError =
     profilesResult.error || savedLinksResult.error || sharedListsResult.error || ordersResult.error || searchEventsResult.error;
@@ -124,7 +134,7 @@ export async function loadAdminDashboard() {
 
 export async function updateAdminProfile(
   id: string,
-  patch: Pick<AdminProfile, "full_name" | "phone" | "address" | "role">,
+  patch: Pick<AdminProfile, "full_name" | "phone" | "address" | "role" | "smart_search_enabled">,
 ) {
   const { error } = await supabase.from("profiles").update(patch).eq("id", id);
   if (error) throw asError(error, "Could not update user.");

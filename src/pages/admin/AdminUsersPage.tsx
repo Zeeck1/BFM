@@ -27,7 +27,7 @@ export function AdminUsersPage() {
     <div>
       <AdminPageHeader
         title="Users"
-        description="Edit profiles and open each member’s activity page."
+        description="Edit profiles, grant Smart Search access, and open each member’s activity page."
         action={<AdminSearchField value={query} onChange={setQuery} placeholder="Filter users…" />}
       />
       <AdminErrorNotice message={error} />
@@ -49,6 +49,10 @@ export function AdminUsersPage() {
                     phone: String(form.get("phone") || "") || null,
                     address: String(form.get("address") || "") || null,
                     role: String(form.get("role")) as "admin" | "user",
+                    smart_search_enabled:
+                      String(form.get("role")) === "admin"
+                        ? true
+                        : form.get("smart_search_enabled") === "on",
                   }),
                 refresh,
               );
@@ -74,6 +78,23 @@ export function AdminUsersPage() {
                 <option value="admin">Admin</option>
               </select>
             </div>
+            <label className="mt-3 flex items-start gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-3 py-3">
+              <input
+                name="smart_search_enabled"
+                type="checkbox"
+                defaultChecked={item.role === "admin" || item.smart_search_enabled === true}
+                disabled={item.role === "admin"}
+                className="mt-0.5 h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+              />
+              <span className="min-w-0">
+                <span className="block text-sm font-semibold text-slate-800">Smart Search access</span>
+                <span className="mt-0.5 block text-xs text-slate-500">
+                  {item.role === "admin"
+                    ? "Admins always have Smart Search access."
+                    : "Allow this user to use Smart Search on Add Link."}
+                </span>
+              </span>
+            </label>
             <div className="mt-4 flex flex-wrap items-center gap-3">
               <AdminSaveButton saving={savingId === item.id} />
               <Link
