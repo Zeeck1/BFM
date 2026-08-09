@@ -73,7 +73,7 @@ export async function fetchLazadaFeedCatalog(options?: {
   if (query) params.set("q", query);
   params.set("page", String(page));
   params.set("limit", String(limit));
-  params.set("sort", options?.sort ?? "default");
+  params.set("sort", options?.sort ?? "popular");
   if (options?.sync) params.set("sync", "1");
 
   let res: Response;

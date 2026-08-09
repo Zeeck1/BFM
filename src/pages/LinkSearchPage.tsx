@@ -72,10 +72,10 @@ import { formatMMK, formatSoldCount, formatTHB } from "../lib/utils";
 import type { ProductPreview, ProductSearchResult } from "../types";
 
 const SEARCH_SORT_OPTIONS: Array<{ value: CatalogSort; label: string }> = [
+  { value: "popular", label: "Most sold" },
   { value: "default", label: "Default" },
   { value: "price_asc", label: "Price: Low to High" },
   { value: "price_desc", label: "Price: High to Low" },
-  { value: "popular", label: "Most sold" },
 ];
 
 function sortSearchResults(
@@ -345,7 +345,7 @@ export function LinkSearchPage() {
   const [searchError, setSearchError] = useState("");
   const [feedMatched, setFeedMatched] = useState(false);
   const [feedMatchCount, setFeedMatchCount] = useState(0);
-  const [searchSort, setSearchSort] = useState<CatalogSort>("default");
+  const [searchSort, setSearchSort] = useState<CatalogSort>("popular");
   const [guestSearchLocked, setGuestSearchLocked] = useState(() => hasGuestUsedFreeSearch());
   const [guestLimitModalOpen, setGuestLimitModalOpen] = useState(false);
   const [smartSearchAllowed, setSmartSearchAllowed] = useState(false);
@@ -770,8 +770,8 @@ export function LinkSearchPage() {
     if (!trimmed) return;
 
     if (!isFetchableUrl(trimmed)) {
-      // Fresh search uses natural order — filter only applies after the user chooses it.
-      setSearchSort("default");
+      // Fresh search defaults to Most sold.
+      setSearchSort("popular");
       if (affiliateMode) {
         if (!user && (guestSearchLocked || hasGuestUsedFreeSearch())) {
           setGuestSearchLocked(true);
@@ -781,7 +781,7 @@ export function LinkSearchPage() {
         setPreview(null);
         setFetchState("idle");
         setFetchError("");
-        await runAffiliateSearch(1, trimmed, "default");
+        await runAffiliateSearch(1, trimmed, "popular");
         return;
       }
       if (smartMode) {
@@ -790,7 +790,7 @@ export function LinkSearchPage() {
           setGuestLimitModalOpen(true);
           return;
         }
-        await runProductSearch(trimmed, 1, "default");
+        await runProductSearch(trimmed, 1, "popular");
         return;
       }
       return;
