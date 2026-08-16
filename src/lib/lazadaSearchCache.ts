@@ -7,6 +7,8 @@ const PAGE_CACHE_KEY = "bfm_lazada_search_pages";
 const LAST_SEARCH_TTL_MS = 24 * 60 * 60_000; // 24 hours
 const PAGE_CACHE_TTL_MS = 30 * 60_000; // 30 minutes
 
+let memoryLastSearch: LazadaLastSearch | null = null;
+
 export interface LazadaLastSearch {
   version: 3;
   query: string;
@@ -21,9 +23,23 @@ interface PageCacheEntry {
   value: LazadaSearchPage;
 }
 
+function slimResults(results: ProductSearchResult[]): ProductSearchResult[] {
+  return results.map((result) => ({
+    url: result.url,
+    title: result.title,
+    image_url: result.image_url,
+    price_thb: result.price_thb,
+    original_price_thb: result.original_price_thb,
+    site_name: result.site_name,
+    shop_name: result.shop_name,
+    source_id: result.source_id,
+    sold_count: result.sold_count,
+  }));
+}
+
 function readJson<T>(key: string): T | null {
   try {
-    const raw = localStorage.getItem(key);
+    const raw = sessionStorage.getItem(key) ?? localStorage.getItem(key);
     if (!raw) return null;
     return JSON.parse(raw) as T;
   } catch {
@@ -32,20 +48,42 @@ function readJson<T>(key: string): T | null {
 }
 
 function writeJson(key: string, value: unknown) {
+  const raw = JSON.stringify(value);
   try {
-    localStorage.setItem(key, JSON.stringify(value));
+    sessionStorage.setItem(key, raw);
+  } catch {
+    /* ignore quota / private mode */
+  }
+  try {
+    localStorage.setItem(key, raw);
   } catch {
     /* ignore quota / private mode */
   }
 }
 
 export function loadLastLazadaSearch(): LazadaLastSearch | null {
+  if (
+    memoryLastSearch?.version === 3 &&
+    memoryLastSearch.query &&
+    Array.isArray(memoryLastSearch.results) &&
+    Date.now() - memoryLastSearch.savedAt <= LAST_SEARCH_TTL_MS
+  ) {
+    return memoryLastSearch;
+  }
+
   const data = readJson<LazadaLastSearch>(LAST_SEARCH_KEY);
   if (data?.version !== 3 || !data.query || !Array.isArray(data.results)) return null;
   if (Date.now() - data.savedAt > LAST_SEARCH_TTL_MS) {
-    localStorage.removeItem(LAST_SEARCH_KEY);
+    memoryLastSearch = null;
+    try {
+      localStorage.removeItem(LAST_SEARCH_KEY);
+      sessionStorage.removeItem(LAST_SEARCH_KEY);
+    } catch {
+      /* ignore */
+    }
     return null;
   }
+  memoryLastSearch = data;
   return data;
 }
 
@@ -56,16 +94,18 @@ export function saveLastLazadaSearch(
   const cleaned = query.trim();
   if (!cleaned || page.results.length === 0) return;
 
-  writeJson(LAST_SEARCH_KEY, {
+  const payload: LazadaLastSearch = {
     version: 3,
     query: cleaned,
     page: page.page,
     hasMore: page.hasMore,
-    results: page.results,
+    results: slimResults(page.results),
     savedAt: Date.now(),
-  } satisfies LazadaLastSearch);
+  };
+  memoryLastSearch = payload;
+  writeJson(LAST_SEARCH_KEY, payload);
 
-  savePageCache(cleaned, page);
+  savePageCache(cleaned, { ...page, results: payload.results });
 }
 
 function pageCacheKey(query: string, page: number): string {
@@ -95,8 +135,10 @@ export function savePageCache(query: string, page: LazadaSearchPage): void {
 }
 
 export function clearLastLazadaSearch(): void {
+  memoryLastSearch = null;
   try {
     localStorage.removeItem(LAST_SEARCH_KEY);
+    sessionStorage.removeItem(LAST_SEARCH_KEY);
   } catch {
     /* ignore */
   }

@@ -8,7 +8,6 @@ import { AuthModal } from "./components/AuthModal";
 import { WelcomeAlertModal } from "./components/WelcomeAlertModal";
 import { AppLayout } from "./components/AppLayout";
 import AdminLayout from "./components/AdminLayout";
-import { LinkSearchPage } from "./pages/LinkSearchPage";
 import { OurServicePage } from "./pages/OurServicePage";
 import { PrivacyPolicyPage } from "./pages/PrivacyPolicyPage";
 import { ProfilePage } from "./pages/ProfilePage";
@@ -32,14 +31,18 @@ export default function App() {
   const [welcomeOpen, setWelcomeOpen] = useState(true);
 
   useEffect(() => {
+    const applyUser = (next: User | null) => {
+      setUser((prev) => (prev?.id === next?.id ? prev : next));
+    };
+
     supabase.auth.getSession().then(({ data }) => {
-      setUser(data.session?.user ?? null);
+      applyUser(data.session?.user ?? null);
     });
 
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, session) => {
-      setUser(session?.user ?? null);
+      applyUser(session?.user ?? null);
       if (session?.user) setAuthOpen(false);
     });
 
@@ -54,7 +57,7 @@ export default function App() {
     <BrowserRouter>
       <Routes>
         <Route element={<AppLayout user={user} onSignIn={openAuth} />}>
-          <Route index element={<LinkSearchPage />} />
+          <Route index element={null} />
           <Route path="wishlist" element={<WishlistPage />} />
           <Route path="qr-codes" element={<QrCodesPage />} />
           <Route path="our-service" element={<OurServicePage />} />

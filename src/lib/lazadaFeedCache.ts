@@ -3,6 +3,9 @@ import type { ProductSearchResult } from "../types";
 const LAST_FEED_KEY = "bfm_lazada_feed_last";
 const LAST_FEED_TTL_MS = 24 * 60 * 60_000; // 24 hours
 
+/** Survives in-app navigation even if localStorage write is quota-blocked. */
+let memoryFeedSession: LazadaFeedLastSession | null = null;
+
 export type LinkSearchMode = "affiliate" | "smart";
 
 export interface LazadaFeedLastSession {
@@ -30,9 +33,23 @@ function scrollStorageKey(mode: LinkSearchMode): string {
   return `bfm_link_search_scroll_${mode}`;
 }
 
+function slimResults(results: ProductSearchResult[]): ProductSearchResult[] {
+  return results.map((result) => ({
+    url: result.url,
+    title: result.title,
+    image_url: result.image_url,
+    price_thb: result.price_thb,
+    original_price_thb: result.original_price_thb,
+    site_name: result.site_name,
+    shop_name: result.shop_name,
+    source_id: result.source_id,
+    sold_count: result.sold_count,
+  }));
+}
+
 function readJson<T>(key: string): T | null {
   try {
-    const raw = localStorage.getItem(key);
+    const raw = sessionStorage.getItem(key) ?? localStorage.getItem(key);
     if (!raw) return null;
     return JSON.parse(raw) as T;
   } catch {
@@ -41,22 +58,52 @@ function readJson<T>(key: string): T | null {
 }
 
 function writeJson(key: string, value: unknown) {
+  const raw = JSON.stringify(value);
   try {
-    localStorage.setItem(key, JSON.stringify(value));
+    sessionStorage.setItem(key, raw);
+  } catch {
+    /* ignore quota / private mode */
+  }
+  try {
+    localStorage.setItem(key, raw);
   } catch {
     /* ignore quota / private mode */
   }
 }
 
+function isFreshSession(data: LazadaFeedLastSession | null): data is LazadaFeedLastSession {
+  if (!data || data.version !== 1 || !Array.isArray(data.results) || data.results.length === 0) {
+    return false;
+  }
+  if (Date.now() - data.savedAt > LAST_FEED_TTL_MS) return false;
+  return true;
+}
+
 export function loadLastLazadaFeedSession(): LazadaFeedLastSession | null {
+  if (isFreshSession(memoryFeedSession)) {
+    return {
+      ...memoryFeedSession,
+      query: typeof memoryFeedSession.query === "string" ? memoryFeedSession.query : "",
+      page:
+        Number.isFinite(memoryFeedSession.page) && memoryFeedSession.page > 0
+          ? memoryFeedSession.page
+          : 1,
+      hasMore: Boolean(memoryFeedSession.hasMore),
+    };
+  }
+
   const data = readJson<LazadaFeedLastSession>(LAST_FEED_KEY);
-  if (data?.version !== 1 || !Array.isArray(data.results) || data.results.length === 0) {
+  if (!isFreshSession(data)) {
+    memoryFeedSession = null;
+    try {
+      localStorage.removeItem(LAST_FEED_KEY);
+      sessionStorage.removeItem(LAST_FEED_KEY);
+    } catch {
+      /* ignore */
+    }
     return null;
   }
-  if (Date.now() - data.savedAt > LAST_FEED_TTL_MS) {
-    localStorage.removeItem(LAST_FEED_KEY);
-    return null;
-  }
+  memoryFeedSession = data;
   return {
     ...data,
     query: typeof data.query === "string" ? data.query : "",
@@ -73,19 +120,23 @@ export function saveLastLazadaFeedSession(
 ): void {
   if (!Array.isArray(results) || results.length === 0) return;
 
-  writeJson(LAST_FEED_KEY, {
+  const session: LazadaFeedLastSession = {
     version: 1,
     query: query.trim(),
     page: page > 0 ? page : 1,
     hasMore: Boolean(hasMore),
-    results,
+    results: slimResults(results),
     savedAt: Date.now(),
-  } satisfies LazadaFeedLastSession);
+  };
+  memoryFeedSession = session;
+  writeJson(LAST_FEED_KEY, session);
 }
 
 export function clearLastLazadaFeedSession(): void {
+  memoryFeedSession = null;
   try {
     localStorage.removeItem(LAST_FEED_KEY);
+    sessionStorage.removeItem(LAST_FEED_KEY);
   } catch {
     /* ignore */
   }

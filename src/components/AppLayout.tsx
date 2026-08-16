@@ -1,13 +1,12 @@
-import { Link, Outlet } from "react-router-dom";
+import { Link, Outlet, useLocation } from "react-router-dom";
 import type { User as SupabaseUser } from "@supabase/supabase-js";
 import { SavedItemsProvider, useSavedItems } from "../contexts/SavedItemsProvider";
 import { AppTabs } from "./AppTabs";
 import { Navbar } from "./Navbar";
+import { LinkSearchPage } from "../pages/LinkSearchPage";
+import { AppShellContext, type AppOutletContext } from "./appShell";
 
-export interface AppOutletContext {
-  user: SupabaseUser | null;
-  onSignIn: () => void;
-}
+export type { AppOutletContext };
 
 interface AppLayoutProps {
   user: SupabaseUser | null;
@@ -16,31 +15,39 @@ interface AppLayoutProps {
 
 function AppLayoutShell({ user, onSignIn }: AppLayoutProps) {
   const { items } = useSavedItems();
+  const { pathname } = useLocation();
+  const isHome = pathname === "/";
+  const outletContext = { user, onSignIn } satisfies AppOutletContext;
 
   return (
-    <div className="min-h-screen bg-[#f8fafc] font-sans text-slate-900 antialiased">
-      <Navbar user={user} onAuthClick={onSignIn} wishlistCount={items.length} />
-      <main>
-        <Outlet context={{ user, onSignIn } satisfies AppOutletContext} />
-      </main>
-      <footer className="border-t border-slate-200 bg-white px-4 pb-[calc(5.5rem+env(safe-area-inset-bottom))] pt-5 lg:py-5">
-        <div className="mx-auto flex max-w-7xl flex-col items-center justify-between gap-2 text-center text-xs text-slate-500 sm:flex-row sm:text-left">
-          <p>© {new Date().getFullYear()} Buy For Me. Thailand → Myanmar shopping service.</p>
-          <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1 sm:justify-end">
-            <Link to="/our-service" className="transition hover:text-indigo-600">
-              Our Service
-            </Link>
-            <Link to="/privacy" className="font-semibold transition hover:text-indigo-600">
-              Privacy Policy
-            </Link>
-            <Link to="/terms" className="font-semibold transition hover:text-indigo-600">
-              Terms of Service
-            </Link>
+    <AppShellContext.Provider value={outletContext}>
+      <div className="min-h-screen bg-[#f8fafc] font-sans text-slate-900 antialiased">
+        <Navbar user={user} onAuthClick={onSignIn} wishlistCount={items.length} />
+        <main>
+          <div className={isHome ? "" : "hidden"} aria-hidden={!isHome}>
+            <LinkSearchPage />
           </div>
-        </div>
-      </footer>
-      <AppTabs wishlistCount={items.length} variant="mobile" />
-    </div>
+          {!isHome && <Outlet context={outletContext} />}
+        </main>
+        <footer className="border-t border-slate-200 bg-white px-4 pb-[calc(5.5rem+env(safe-area-inset-bottom))] pt-5 lg:py-5">
+          <div className="mx-auto flex max-w-7xl flex-col items-center justify-between gap-2 text-center text-xs text-slate-500 sm:flex-row sm:text-left">
+            <p>© {new Date().getFullYear()} Buy For Me. Thailand → Myanmar shopping service.</p>
+            <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1 sm:justify-end">
+              <Link to="/our-service" className="transition hover:text-indigo-600">
+                Our Service
+              </Link>
+              <Link to="/privacy" className="font-semibold transition hover:text-indigo-600">
+                Privacy Policy
+              </Link>
+              <Link to="/terms" className="font-semibold transition hover:text-indigo-600">
+                Terms of Service
+              </Link>
+            </div>
+          </div>
+        </footer>
+        <AppTabs wishlistCount={items.length} variant="mobile" />
+      </div>
+    </AppShellContext.Provider>
   );
 }
 

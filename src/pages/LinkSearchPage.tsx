@@ -5,7 +5,7 @@ import {
   useRef,
   useState,
 } from "react";
-import { Link, useOutletContext } from "react-router-dom";
+import { Link } from "react-router-dom";
 import {
   ArrowDownWideNarrow,
   ArrowRight,
@@ -24,7 +24,7 @@ import {
   X,
 } from "lucide-react";
 import { AdSenseUnit } from "../components/AdSenseUnit";
-import type { AppOutletContext } from "../components/AppLayout";
+import { useAppShell } from "../components/appShell";
 import { BrandLogo } from "../components/BrandLogo";
 import { GuestSearchLimitModal } from "../components/GuestSearchLimitModal";
 import { ImageLightbox } from "../components/ImageLightbox";
@@ -331,7 +331,7 @@ function SearchResultCard({
 }
 
 export function LinkSearchPage() {
-  const { user, onSignIn } = useOutletContext<AppOutletContext>();
+  const { user, onSignIn } = useAppShell();
   const defaultMode: SearchMode = "affiliate";
   const [searchMode, setSearchMode] = useState<SearchMode>(defaultMode);
   const [url, setUrl] = useState("");
@@ -371,11 +371,6 @@ export function LinkSearchPage() {
         setSmartSearchAllowed(allowed);
         if (!allowed) {
           setSearchMode((mode) => (mode === "smart" ? "affiliate" : mode));
-          setSearchResults([]);
-          setSearchPage(1);
-          setSearchHasMore(false);
-          setSearchState("idle");
-          setSearchError("");
         }
       });
       return () => {
@@ -385,11 +380,6 @@ export function LinkSearchPage() {
     setSmartSearchAllowed(false);
     setGuestSearchLocked(hasGuestUsedFreeSearch());
     setSearchMode((mode) => (mode === "smart" ? "affiliate" : mode));
-    setSearchResults([]);
-    setSearchPage(1);
-    setSearchHasMore(false);
-    setSearchState("idle");
-    setSearchError("");
   }, [user]);
 
   useEffect(() => {
