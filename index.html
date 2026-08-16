@@ -19,6 +19,8 @@
     />
     <meta name="application-name" content="Buy For Me" />
     <link rel="canonical" href="https://buyforme.world/" />
+    <link rel="preconnect" href="https://bfm-fnrj.onrender.com" crossorigin />
+    <link rel="dns-prefetch" href="https://bfm-fnrj.onrender.com" />
     <title>Buy For Me | BFM</title>
     <!-- Inter font via Google Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -30,6 +32,15 @@
   </head>
   <body>
     <div id="root"></div>
+    <script>
+      (function () {
+        fetch("/api/health", { cache: "no-store" }).catch(function () {});
+        fetch("https://bfm-fnrj.onrender.com/api/health", {
+          cache: "no-store",
+          mode: "cors",
+        }).catch(function () {});
+      })();
+    </script>
     <noscript>
       <main style="font-family: Inter, Arial, sans-serif; max-width: 720px; margin: 0 auto; padding: 32px 20px; color: #0f172a; line-height: 1.6;">
         <h1>Buy For Me (BFM)</h1>

@@ -1,4 +1,5 @@
 import type { ProductSearchResult } from "../types";
+import { fetchApi } from "./apiClient";
 import { BFM_ERRORS, toBfmUserError } from "./bfmMessages";
 import { loadPageCache, saveLastLazadaSearch } from "./lazadaSearchCache";
 
@@ -38,11 +39,12 @@ export async function searchLazadaProducts(
 
   let res: Response;
   try {
-    res = await fetch("/api/lazada-search", {
+    res = await fetchApi("/api/lazada-search", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ query: cleaned, page, pageSize: LAZADA_SEARCH_PAGE_SIZE }),
-      signal: AbortSignal.timeout(25_000),
+      timeoutMs: 45_000,
+      retries: 4,
     });
   } catch {
     throw new Error(BFM_ERRORS.searchUnavailable);

@@ -1,4 +1,5 @@
 import type { ProductSearchResult } from "../types";
+import { fetchApi } from "./apiClient";
 import { BFM_ERRORS, toBfmUserError } from "./bfmMessages";
 
 interface LazadaFeedResponse {
@@ -37,7 +38,7 @@ export async function fetchLazadaFeed(
   let res: Response;
   try {
     // First keyword filter may load the full feed JSON; later pages use server cache.
-    res = await fetch("/api/lazada-feed", {
+    res = await fetchApi("/api/lazada-feed", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -45,7 +46,8 @@ export async function fetchLazadaFeed(
         page,
         limit: LAZADA_FEED_PAGE_SIZE,
       }),
-      signal: AbortSignal.timeout(90_000),
+      timeoutMs: 90_000,
+      retries: 3,
     });
   } catch {
     throw new Error(BFM_ERRORS.feedUnavailable);

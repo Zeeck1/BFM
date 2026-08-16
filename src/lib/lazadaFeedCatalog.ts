@@ -1,3 +1,4 @@
+import { fetchApi } from "./apiClient";
 import { BFM_ERRORS, toBfmUserError } from "./bfmMessages";
 
 export const FEED_CATALOG_PAGE_SIZE = 24;
@@ -78,8 +79,9 @@ export async function fetchLazadaFeedCatalog(options?: {
 
   let res: Response;
   try {
-    res = await fetch(`/api/lazada-feed-catalog?${params}`, {
-      signal: AbortSignal.timeout(options?.sync ? 300_000 : 45_000),
+    res = await fetchApi(`/api/lazada-feed-catalog?${params}`, {
+      timeoutMs: options?.sync ? 300_000 : 45_000,
+      retries: options?.sync ? 0 : 4,
     });
   } catch {
     throw new Error(BFM_ERRORS.feedUnavailable);

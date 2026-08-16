@@ -1,3 +1,4 @@
+import { fetchApi } from "./apiClient";
 import { supabase } from "./supabase";
 
 export interface LazadaCatalogStats {
@@ -33,7 +34,7 @@ async function adminAuthHeaders(): Promise<HeadersInit> {
 
 export async function fetchLazadaCatalogStats(): Promise<LazadaCatalogStats> {
   const headers = await adminAuthHeaders();
-  const res = await fetch("/api/lazada-catalog-stats", { headers });
+  const res = await fetchApi("/api/lazada-catalog-stats", { headers, retries: 3 });
   const data = (await res.json().catch(() => ({}))) as LazadaCatalogStats & {
     error?: string;
   };
@@ -45,11 +46,12 @@ export async function syncLazadaCatalog(options?: {
   maxPages?: number;
 }): Promise<LazadaFeedSyncResult> {
   const headers = await adminAuthHeaders();
-  const res = await fetch("/api/lazada-feed-sync", {
+  const res = await fetchApi("/api/lazada-feed-sync", {
     method: "POST",
     headers,
     body: JSON.stringify({ offerType: 1, maxPages: options?.maxPages }),
-    signal: AbortSignal.timeout(10 * 60_000),
+    timeoutMs: 10 * 60_000,
+    retries: 0,
   });
   const data = (await res.json().catch(() => ({}))) as LazadaFeedSyncResult & {
     error?: string;

@@ -81,6 +81,23 @@ async function popularFallback(need: number, seen: Set<string>): Promise<LazadaS
   return out;
 }
 
+async function productsFromSearchEvents(limit: number): Promise<LazadaSearchResult[]> {
+  const queries = await topSearchQueries(limit);
+  const found = await Promise.all(
+    queries.map((query) =>
+      firstProductForQuery(query).catch((err) => {
+        console.warn(
+          "[BFM] trending resolve failed for",
+          query,
+          err instanceof Error ? err.message : err,
+        );
+        return null;
+      }),
+    ),
+  );
+  return found.filter((product): product is LazadaSearchResult => Boolean(product));
+}
+
 export async function getTrendingProducts(limit = TRENDING_LIMIT): Promise<LazadaSearchResult[]> {
   const safeLimit = Math.min(Math.max(Math.floor(limit) || TRENDING_LIMIT, 1), 12);
 
@@ -91,28 +108,25 @@ export async function getTrendingProducts(limit = TRENDING_LIMIT): Promise<Lazad
   const products: LazadaSearchResult[] = [];
   const seen = new Set<string>();
 
-  const queries = await topSearchQueries(safeLimit * 3);
-  for (const query of queries) {
+  const [fromSearches, popular] = await Promise.all([
+    productsFromSearchEvents(safeLimit),
+    popularFallback(safeLimit, new Set()),
+  ]);
+
+  for (const product of fromSearches) {
+    const key = productKey(product);
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    products.push(product);
     if (products.length >= safeLimit) break;
-    try {
-      const product = await firstProductForQuery(query);
-      if (!product) continue;
-      const key = productKey(product);
-      if (!key || seen.has(key)) continue;
-      seen.add(key);
-      products.push(product);
-    } catch (err) {
-      console.warn(
-        "[BFM] trending resolve failed for",
-        query,
-        err instanceof Error ? err.message : err,
-      );
-    }
   }
 
-  if (products.length < safeLimit) {
-    const filler = await popularFallback(safeLimit - products.length, seen);
-    products.push(...filler);
+  for (const product of popular) {
+    if (products.length >= safeLimit) break;
+    const key = productKey(product);
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    products.push(product);
   }
 
   if (products.length > 0) {

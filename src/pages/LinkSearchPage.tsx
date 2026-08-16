@@ -395,7 +395,7 @@ export function LinkSearchPage() {
   useEffect(() => {
     const controller = new AbortController();
     setTrendingState("loading");
-    void fetchTrendingProducts(TRENDING_PRODUCTS_LIMIT)
+    void fetchTrendingProducts(TRENDING_PRODUCTS_LIMIT, controller.signal)
       .then((results) => {
         if (controller.signal.aborted) return;
         setTrendingProducts(results);

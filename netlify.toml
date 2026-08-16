@@ -7,6 +7,7 @@
   VITE_AFFILIATE_SEARCH_ENABLED = "true"
   VITE_MESSENGER_PAGE_URL = "https://m.me/1208338659022658"
   VITE_FACEBOOK_PAGE_URL = "https://www.facebook.com/1208338659022658"
+  VITE_API_ORIGIN = "https://bfm-fnrj.onrender.com"
 
 [[redirects]]
   from = "/api/*"
