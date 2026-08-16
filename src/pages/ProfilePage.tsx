@@ -1,16 +1,17 @@
 import { type ChangeEvent, useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { useOutletContext } from "react-router-dom";
 import {
   AlertCircle,
   ArrowLeft,
   Camera,
   CheckCircle2,
+  Eye,
+  EyeOff,
   Loader2,
   Mail,
   UserRound,
 } from "lucide-react";
-import type { AppOutletContext } from "../components/AppLayout";
+import { useAppShell } from "../components/appShell";
 import { userAvatarUrl, userDisplayName } from "../lib/auth";
 import { supabase } from "../lib/supabase";
 import { syncOwnerProfileInSharedLists } from "../lib/shareList";
@@ -20,6 +21,10 @@ const MAX_AVATAR_BYTES = 2 * 1024 * 1024;
 function safeFileName(file: File): string {
   const ext = file.name.split(".").pop()?.toLowerCase() || "jpg";
   return `${Date.now()}.${ext.replace(/[^a-z0-9]/g, "") || "jpg"}`;
+}
+
+function hiddenEmailPlaceholder(): string {
+  return "••••••••••••••••";
 }
 
 function AvatarDisplay({
@@ -70,11 +75,12 @@ function AvatarDisplay({
 }
 
 export function ProfilePage() {
-  const { user } = useOutletContext<AppOutletContext>();
+  const { user } = useAppShell();
   const navigate = useNavigate();
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [displayName, setDisplayName] = useState("");
+  const [showEmail, setShowEmail] = useState(false);
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -255,12 +261,35 @@ export function ProfilePage() {
 
           {email && (
             <div>
-              <span className="mb-1.5 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-slate-500">
-                <Mail className="h-3.5 w-3.5" />
-                Email
-              </span>
+              <div className="mb-1.5 flex items-center justify-between gap-3">
+                <span className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                  <Mail className="h-3.5 w-3.5" />
+                  Email
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setShowEmail((prev) => !prev)}
+                  className="inline-flex items-center gap-1.5 rounded-lg px-2 py-1 text-xs font-semibold text-slate-500 transition hover:bg-slate-100 hover:text-slate-800"
+                  aria-pressed={showEmail}
+                  aria-label={showEmail ? "Hide email address" : "Show email address"}
+                >
+                  {showEmail ? (
+                    <>
+                      <EyeOff className="h-3.5 w-3.5" />
+                      Hide
+                    </>
+                  ) : (
+                    <>
+                      <Eye className="h-3.5 w-3.5" />
+                      Show
+                    </>
+                  )}
+                </button>
+              </div>
               <div className="flex items-center rounded-xl border border-slate-100 bg-slate-50/80 px-4 py-3">
-                <p className="min-w-0 truncate text-sm text-slate-500">{email}</p>
+                <p className="min-w-0 truncate text-sm text-slate-500">
+                  {showEmail ? email : hiddenEmailPlaceholder()}
+                </p>
               </div>
               <p className="mt-1.5 text-[11px] text-slate-400">
                 Signed in with Google — email cannot be changed here.

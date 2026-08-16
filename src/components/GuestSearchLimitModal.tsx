@@ -47,7 +47,7 @@ export function GuestSearchLimitModal({
               Free guest search used
             </h2>
             <p className="mt-2 text-sm leading-relaxed text-slate-300">
-              Sign in to search again, open more pages, and save products to your wishlist.
+            ထပ်မံ ရှာဖွေရန်၊ ပစ္စည်းများ ပိုမို ကြည့်ရှုရန်နှင့် ပစ္စည်းများကို သိမ်းဆည်းရန် အကောင့်ဝင်ပါ။
             </p>
           </div>
         </div>

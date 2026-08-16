@@ -63,6 +63,10 @@ import {
   SMART_SEARCH_ENABLED,
 } from "../lib/productSearchEnabled";
 import { fetchCanUseSmartSearch } from "../lib/smartSearchAccess";
+import {
+  hasUsedFreeSmartSearch,
+  markFreeSmartSearchUsed,
+} from "../lib/smartSearchLimit";
 
 type SearchMode = "affiliate" | "smart";
 import { recordSearchHistory } from "../lib/searchHistory";
@@ -349,6 +353,7 @@ export function LinkSearchPage() {
   const [guestSearchLocked, setGuestSearchLocked] = useState(() => hasGuestUsedFreeSearch());
   const [guestLimitModalOpen, setGuestLimitModalOpen] = useState(false);
   const [smartSearchAllowed, setSmartSearchAllowed] = useState(false);
+  const [smartSearchLocked, setSmartSearchLocked] = useState(false);
   const [smartAccessModalOpen, setSmartAccessModalOpen] = useState(false);
   const { rate } = useExchangeRate();
   const { items: savedItems, saving, save } = useSavedItems();
@@ -356,6 +361,7 @@ export function LinkSearchPage() {
   const resultsRef = useRef<HTMLDivElement>(null);
   const restoreScrollRef = useRef(false);
   const pendingScrollRef = useRef<LinkSearchScrollState | null>(null);
+  const pendingSmartModeRef = useRef(false);
   const [highlightProductUrl, setHighlightProductUrl] = useState<string | null>(null);
   const [trendingProducts, setTrendingProducts] = useState<ProductSearchResult[]>([]);
   const [trendingState, setTrendingState] = useState<FetchState>("idle");
@@ -369,8 +375,10 @@ export function LinkSearchPage() {
       void fetchCanUseSmartSearch().then((allowed) => {
         if (cancelled) return;
         setSmartSearchAllowed(allowed);
-        if (!allowed) {
-          setSearchMode((mode) => (mode === "smart" ? "affiliate" : mode));
+        setSmartSearchLocked(!allowed && hasUsedFreeSmartSearch(user.id));
+        if (pendingSmartModeRef.current && SMART_SEARCH_ENABLED) {
+          pendingSmartModeRef.current = false;
+          setSearchMode("smart");
         }
       });
       return () => {
@@ -379,7 +387,7 @@ export function LinkSearchPage() {
     }
     setSmartSearchAllowed(false);
     setGuestSearchLocked(hasGuestUsedFreeSearch());
-    setSearchMode((mode) => (mode === "smart" ? "affiliate" : mode));
+    setSmartSearchLocked(false);
   }, [user]);
 
   useEffect(() => {
@@ -401,8 +409,7 @@ export function LinkSearchPage() {
 
   const searchEnabled = AFFILIATE_SEARCH_ENABLED || SMART_SEARCH_ENABLED;
   const affiliateMode = searchMode === "affiliate" && AFFILIATE_SEARCH_ENABLED;
-  const smartMode =
-    searchMode === "smart" && SMART_SEARCH_ENABLED && smartSearchAllowed;
+  const smartMode = searchMode === "smart" && SMART_SEARCH_ENABLED;
 
   const hasActivity =
     fetchState !== "idle" ||
@@ -464,8 +471,9 @@ export function LinkSearchPage() {
     if (mode === "smart" && !SMART_SEARCH_ENABLED) return;
     if (mode === "affiliate" && !AFFILIATE_SEARCH_ENABLED) return;
 
-    if (mode === "smart" && !smartSearchAllowed) {
-      setSmartAccessModalOpen(true);
+    if (mode === "smart" && !user) {
+      pendingSmartModeRef.current = true;
+      onSignIn();
       return;
     }
 
@@ -552,7 +560,7 @@ export function LinkSearchPage() {
     }
   }
 
-  // Restore Search session / scroll. Smart Search is restored only after access is confirmed.
+  // Restore Search session / scroll, including a used free Smart Search.
   useEffect(() => {
     const affiliateScroll = AFFILIATE_SEARCH_ENABLED
       ? loadLinkSearchScroll("affiliate")
@@ -574,9 +582,9 @@ export function LinkSearchPage() {
     restoreAffiliate(null);
   }, []);
 
-  // After Smart Search access is confirmed, restore that mode if returning from a product.
+  // After Smart Search is available (granted or 1 free use), restore that mode if returning from a product.
   useEffect(() => {
-    if (!SMART_SEARCH_ENABLED || !smartSearchAllowed) return;
+    if (!SMART_SEARCH_ENABLED) return;
 
     const smartScroll = loadLinkSearchScroll("smart");
     const smartSession = loadLastLazadaSearch();
@@ -586,7 +594,7 @@ export function LinkSearchPage() {
     pendingScrollRef.current = smartScroll;
     applyCachedSearch(smartSession);
     setSearchMode("smart");
-  }, [smartSearchAllowed]);
+  }, [smartSearchAllowed, smartSearchLocked]);
 
   // After restored results paint, smoothly scroll back to the opened product
   useEffect(() => {
@@ -694,15 +702,16 @@ export function LinkSearchPage() {
   }
 
   async function runProductSearch(query: string, page = 1, sort: CatalogSort = searchSort) {
-    if (!smartSearchAllowed) {
-      setSmartAccessModalOpen(true);
+    if (!user) {
+      onSignIn();
       setSearchError("");
       setSearchState(searchResults.length > 0 ? "done" : "idle");
       return;
     }
 
-    // Guests cannot use Smart Search — permission is admin-granted only.
-    if (!user) {
+    const usedFreeSearch = hasUsedFreeSmartSearch(user.id);
+    if (!smartSearchAllowed && (page > 1 || smartSearchLocked || usedFreeSearch)) {
+      setSmartSearchLocked(true);
       setSmartAccessModalOpen(true);
       setSearchError("");
       setSearchState(searchResults.length > 0 ? "done" : "idle");
@@ -729,7 +738,12 @@ export function LinkSearchPage() {
       setSearchPage(response.page);
       setSearchHasMore(response.hasMore);
       setSearchState("done");
-      if (user && page === 1) {
+      if (!smartSearchAllowed && page === 1) {
+        markFreeSmartSearchUsed(user.id);
+        setSmartSearchLocked(true);
+        setSmartAccessModalOpen(true);
+      }
+      if (page === 1) {
         void recordSearchHistory(user.id, `Smart Search: ${query}`);
       }
     } catch (e) {
@@ -775,9 +789,13 @@ export function LinkSearchPage() {
         return;
       }
       if (smartMode) {
-        if (!user && (guestSearchLocked || hasGuestUsedFreeSearch())) {
-          setGuestSearchLocked(true);
-          setGuestLimitModalOpen(true);
+        if (!user) {
+          onSignIn();
+          return;
+        }
+        if (!smartSearchAllowed && (smartSearchLocked || hasUsedFreeSmartSearch(user.id))) {
+          setSmartSearchLocked(true);
+          setSmartAccessModalOpen(true);
           return;
         }
         await runProductSearch(trimmed, 1, "popular");
@@ -903,11 +921,20 @@ export function LinkSearchPage() {
                 ? "Fast and update Lazada product results or paste any product URL."
                 : "Paste any product URL — we fetch the details so you can save it to your wishlist."}
           </p>
-          {(affiliateMode || smartMode) && !user && (
+          {smartMode && !smartSearchAllowed && (
+            <p className="mx-auto mt-2 max-w-lg text-xs text-slate-500">
+              {!user
+                ? "Sign in or sign up to use 1 free Smart Search."
+                : smartSearchLocked
+                  ? "Free Smart Search used. Contact us on Messenger for unlimited access."
+                  : "Signed-in accounts get 1 free Smart Search. Contact us for unlimited access."}
+            </p>
+          )}
+          {affiliateMode && !user && (
             <p className="mx-auto mt-2 max-w-lg text-xs text-slate-500">
               {guestSearchLocked
-                ? `Free guest ${affiliateMode ? "Search" : "Smart Search"} used. Sign in to keep searching.`
-                : `Guests get 1 free ${affiliateMode ? "Search" : "Smart Search"}. Sign in for unlimited searches.`}
+                ? "Free guest Search used. Sign in to keep searching."
+                : "Guests get 1 free Search. Sign in for unlimited searches."}
             </p>
           )}
 
@@ -937,8 +964,13 @@ export function LinkSearchPage() {
                   }`}
                 >
                   Smart Search
-                  {!smartSearchAllowed && (
-                    <span className="ml-1 text-[10px] font-medium text-amber-300/90">Locked</span>
+                  {!user ? (
+                    <span className="ml-1 text-[10px] font-medium text-amber-300/90">Sign in</span>
+                  ) : (
+                    !smartSearchAllowed &&
+                    smartSearchLocked && (
+                      <span className="ml-1 text-[10px] font-medium text-amber-300/90">Locked</span>
+                    )
                   )}
                 </button>
               )}
@@ -1338,6 +1370,15 @@ export function LinkSearchPage() {
                       <button
                         type="button"
                         onClick={() => {
+                          if (smartMode && !user) {
+                            onSignIn();
+                            return;
+                          }
+                          if (smartMode && !smartSearchAllowed) {
+                            setSmartSearchLocked(true);
+                            setSmartAccessModalOpen(true);
+                            return;
+                          }
                           if (!user && (guestSearchLocked || hasGuestUsedFreeSearch())) {
                             setGuestSearchLocked(true);
                             setGuestLimitModalOpen(true);
@@ -1377,6 +1418,11 @@ export function LinkSearchPage() {
                           <button
                             type="button"
                             onClick={() => {
+                              if (!user) {
+                                pendingSmartModeRef.current = true;
+                                onSignIn();
+                                return;
+                              }
                               switchSearchMode("smart");
                               if (trimmedInput) {
                                 window.setTimeout(() => {

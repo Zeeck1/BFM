@@ -40,10 +40,10 @@ export function SmartSearchAccessModal({ open, onClose }: SmartSearchAccessModal
               id="smart-search-access-title"
               className="mt-3 text-2xl font-bold tracking-tight"
             >
-              Access required
+              Free Smart Search used
             </h2>
             <p className="mt-2 text-sm leading-relaxed text-slate-300">
-              If you want to access our Smart Search, contact us on Messenger.
+              Every signed-in account gets 1 free Smart Search. Contact us on Messenger if you want unlimited access.
             </p>
           </div>
         </div>
