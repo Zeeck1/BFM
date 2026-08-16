@@ -7,6 +7,7 @@ import {
   ExternalLink,
   ImageOff,
   Loader2,
+  MessageCircle,
   Pencil,
   QrCode,
   Receipt,
@@ -33,6 +34,7 @@ import {
   shareUrl,
   timeRemaining,
 } from "../lib/shareList";
+import { openBuyForMeOnMessenger } from "../lib/messenger";
 import { formatMMK, formatSoldCount, formatTHB } from "../lib/utils";
 import type { ProductPreview, ProductSearchResult, SavedLink } from "../types";
 
@@ -40,6 +42,27 @@ type DetailLocationState = {
   product?: ProductSearchResult;
   from?: string;
 };
+
+function toMessengerItem(product: ProductPreview & Partial<SavedLink>): SavedLink {
+  return {
+    id: product.id ?? "detail",
+    url: product.url,
+    title: product.title,
+    description: product.description,
+    image_url: product.image_url,
+    price_thb: product.price_thb,
+    price_mmk: product.price_mmk,
+    site_name: product.site_name,
+    shop_name: product.shop_name,
+    review_count: product.review_count,
+    average_score: product.average_score,
+    sold_count: product.sold_count,
+    product_colors: product.product_colors,
+    product_sizes: product.product_sizes,
+    notes: product.notes,
+    created_at: product.created_at ?? new Date().toISOString(),
+  };
+}
 
 function detectProductLanguage(text: string): string {
   if (/[\u0E00-\u0E7F]/u.test(text)) return "th";
@@ -199,6 +222,11 @@ export function ProductDetailPage() {
     if (saved) setSlipItem(saved);
   }
 
+  function handleBuyInMessenger() {
+    if (!product) return;
+    openBuyForMeOnMessenger([toMessengerItem({ ...product, ...savedItem })]);
+  }
+
   async function handleQrCode() {
     if (!savedProduct || !user) return;
 
@@ -317,7 +345,16 @@ export function ProductDetailPage() {
                   )}
                 </div>
 
-                <div className="mt-4 grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={handleBuyInMessenger}
+                  className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-[#0084FF] px-4 py-3 text-sm font-bold text-white shadow-sm transition hover:bg-[#0078eb]"
+                >
+                  <MessageCircle className="h-4 w-4" />
+                  Buy in Messenger
+                </button>
+
+                <div className="mt-2 grid grid-cols-2 gap-2">
                   {savedProduct ? (
                     <button
                       type="button"
