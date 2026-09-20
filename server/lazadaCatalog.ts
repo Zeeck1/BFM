@@ -228,6 +228,7 @@ async function runExpandedFeedSync(): Promise<CatalogSyncResult> {
       .eq("id", runId);
 
     clearLazadaAffiliateFeedCache();
+    clearCatalogSearchCache();
     console.warn(
       `[BFM] Synced ${productsUpserted} affiliate products to database (full API raw JSON)`,
     );
@@ -270,21 +271,56 @@ export function normalizeCatalogSort(raw: unknown): CatalogSort {
   return "default";
 }
 
+interface CatalogPageResult {
+  products: LeanCatalogProduct[];
+  page: number;
+  page_size: number;
+  /** Lower bound when total_exact is false. */
+  total: number;
+  total_exact: boolean;
+  has_more: boolean;
+  source: "database";
+  blocked?: boolean;
+}
+
+const CATALOG_SEARCH_CACHE_TTL_MS = 2 * 60_000;
+const CATALOG_SEARCH_CACHE_MAX = 100;
+const catalogSearchCache = new Map<
+  string,
+  { expiresAt: number; value: CatalogPageResult }
+>();
+
+function clearCatalogSearchCache(): void {
+  catalogSearchCache.clear();
+}
+
+function catalogSearchCacheKey(
+  query: string,
+  page: number,
+  pageSize: number,
+  sort: CatalogSort,
+): string {
+  return `${query.toLocaleLowerCase()}::${page}::${pageSize}::${sort}`;
+}
+
+function cacheCatalogPage(key: string, value: CatalogPageResult): void {
+  if (catalogSearchCache.size >= CATALOG_SEARCH_CACHE_MAX) {
+    const oldestKey = catalogSearchCache.keys().next().value;
+    if (oldestKey) catalogSearchCache.delete(oldestKey);
+  }
+  catalogSearchCache.set(key, {
+    expiresAt: Date.now() + CATALOG_SEARCH_CACHE_TTL_MS,
+    value,
+  });
+}
+
 /** Paginated browse/search against DB (lean products for Feed page). */
 export async function listLazadaCatalogPage(
   query = "",
   page = 1,
   pageSize = 24,
   sort: CatalogSort = "default",
-): Promise<{
-  products: LeanCatalogProduct[];
-  page: number;
-  page_size: number;
-  total: number;
-  has_more: boolean;
-  source: "database";
-  blocked?: boolean;
-}> {
+): Promise<CatalogPageResult> {
   const supabase = getSupabaseAdmin();
   if (!supabase || !isSupabaseAdminConfigured()) {
     return {
@@ -292,6 +328,7 @@ export async function listLazadaCatalogPage(
       page: 1,
       page_size: pageSize,
       total: 0,
+      total_exact: true,
       has_more: false,
       source: "database",
       blocked: true,
@@ -306,13 +343,17 @@ export async function listLazadaCatalogPage(
   const to = from + safeSize - 1;
   const cleaned = query.trim();
   const catalogSort = normalizeCatalogSort(sort);
+  const cacheKey = catalogSearchCacheKey(cleaned, safePage, safeSize, catalogSort);
+  const cached = catalogSearchCache.get(cacheKey);
+  if (cached && cached.expiresAt > Date.now()) return cached.value;
+  if (cached) catalogSearchCache.delete(cacheKey);
 
   let builder = supabase
     .from("lazada_products")
     .select(
       "product_id, title, product_url, image_url, price_thb, shop_name, brand_name, category_l1, sold_count, stock, out_of_stock, offer_type, currency, raw",
-      { count: "exact" },
-    );
+    )
+    .eq("out_of_stock", false);
 
   if (catalogSort === "price_desc") {
     builder = builder
@@ -333,24 +374,26 @@ export async function listLazadaCatalogPage(
       .order("product_id", { ascending: true });
   }
 
-  builder = builder.range(from, to);
+  // One extra row determines pagination without an expensive exact COUNT(*).
+  builder = builder.range(from, to + 1);
 
   if (cleaned) {
     const safe = cleaned.replace(/[%_,.()]/g, " ").replace(/\s+/g, " ").trim();
     if (safe) {
       const pattern = `%${safe}%`;
-      builder = builder.or(
-        [
-          `title.ilike."${pattern}"`,
-          `shop_name.ilike."${pattern}"`,
-          `brand_name.ilike."${pattern}"`,
-          `product_id.ilike."${pattern}"`,
-        ].join(","),
-      );
+      const filters = [
+        `title.ilike."${pattern}"`,
+        `shop_name.ilike."${pattern}"`,
+        `brand_name.ilike."${pattern}"`,
+      ];
+      // Leading-wildcard product_id searches cannot use its primary-key index and
+      // forced a full-table scan for every text query.
+      if (/^\d+$/.test(safe)) filters.push(`product_id.eq."${safe}"`);
+      builder = builder.or(filters.join(","));
     }
   }
 
-  const { data, error, count } = await builder;
+  const { data, error } = await builder;
   if (error) {
     console.warn("[BFM] Lazada catalog list failed:", error.message);
     return {
@@ -358,23 +401,27 @@ export async function listLazadaCatalogPage(
       page: safePage,
       page_size: safeSize,
       total: 0,
+      total_exact: false,
       has_more: false,
       source: "database",
       blocked: true,
     };
   }
 
-  const total = count ?? 0;
-  const products = ((data ?? []) as Record<string, unknown>[]).map(mapLeanProduct);
-
-  return {
+  const rows = (data ?? []) as Record<string, unknown>[];
+  const has_more = rows.length > safeSize;
+  const products = (has_more ? rows.slice(0, safeSize) : rows).map(mapLeanProduct);
+  const result: CatalogPageResult = {
     products,
     page: safePage,
     page_size: safeSize,
-    total,
-    has_more: from + products.length < total,
+    total: from + products.length + (has_more ? 1 : 0),
+    total_exact: !has_more,
+    has_more,
     source: "database",
   };
+  cacheCatalogPage(cacheKey, result);
+  return result;
 }
 
 export async function syncLazadaProductCatalog(
@@ -474,6 +521,7 @@ export async function syncLazadaProductCatalog(
       })
       .eq("id", runId);
 
+    clearCatalogSearchCache();
     return {
       ok: true,
       status: "success",

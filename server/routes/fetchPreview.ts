@@ -510,6 +510,36 @@ fetchPreviewRouter.get("/lazada-feed-catalog", async (req, res) => {
 
   try {
     let list = await listLazadaCatalogPage(query, page, limit, sort);
+    if (list.blocked) {
+      res.status(503).json({
+        error: BFM_ERRORS.feedUnavailable,
+        products: [],
+        total: 0,
+      });
+      return;
+    }
+
+    // Keyword search must return immediately. Catalog stats require two extra
+    // database queries and are not needed to render search results.
+    if (query) {
+      res.set("Cache-Control", "public, max-age=60, stale-while-revalidate=300");
+      res.json({
+        source: list.source,
+        page: list.page,
+        page_size: list.page_size,
+        total: list.total,
+        total_exact: list.total_exact,
+        has_more: list.has_more,
+        query,
+        sort,
+        products: list.products,
+        catalog_total: list.total,
+        last_sync: null,
+        live_sync_minutes: env.lazadaFeedLiveSyncMinutes,
+      });
+      return;
+    }
+
     let stats = await getLazadaCatalogStats();
 
     // Cold start only when the catalog table is empty — never when a keyword
@@ -543,6 +573,7 @@ fetchPreviewRouter.get("/lazada-feed-catalog", async (req, res) => {
       page: list.page,
       page_size: list.page_size,
       total: list.total,
+      total_exact: list.total_exact,
       has_more: list.has_more,
       query,
       sort,

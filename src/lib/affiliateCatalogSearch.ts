@@ -33,6 +33,7 @@ export interface AffiliateSearchPage {
   page: number;
   hasMore: boolean;
   matchCount: number;
+  matchCountExact: boolean;
   catalogTotal: number;
   query: string;
 }
@@ -55,6 +56,7 @@ export async function searchAffiliateCatalog(
     page: data.page,
     hasMore: data.hasMore,
     matchCount: data.total,
+    matchCountExact: data.totalExact,
     catalogTotal: data.catalogTotal,
     query: data.query,
   };

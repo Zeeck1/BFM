@@ -349,6 +349,7 @@ export function LinkSearchPage() {
   const [searchError, setSearchError] = useState("");
   const [feedMatched, setFeedMatched] = useState(false);
   const [feedMatchCount, setFeedMatchCount] = useState(0);
+  const [feedMatchCountExact, setFeedMatchCountExact] = useState(true);
   const [searchSort, setSearchSort] = useState<CatalogSort>("popular");
   const [guestSearchLocked, setGuestSearchLocked] = useState(() => hasGuestUsedFreeSearch());
   const [guestLimitModalOpen, setGuestLimitModalOpen] = useState(false);
@@ -444,6 +445,7 @@ export function LinkSearchPage() {
     setSearchError("");
     setFeedMatched(false);
     setFeedMatchCount(0);
+    setFeedMatchCountExact(true);
   }
 
   function applyAffiliateSession(session: {
@@ -461,6 +463,7 @@ export function LinkSearchPage() {
     setSearchError("");
     setFeedMatched(session.results.length > 0);
     setFeedMatchCount(session.results.length);
+    setFeedMatchCountExact(!session.hasMore);
     setFetchState("idle");
     setPreview(null);
     setFetchError("");
@@ -539,6 +542,7 @@ export function LinkSearchPage() {
       setSearchHasMore(response.hasMore);
       setFeedMatched(response.matchCount > 0);
       setFeedMatchCount(response.matchCount);
+      setFeedMatchCountExact(response.matchCountExact);
       setSearchState("done");
       if (results.length > 0) {
         saveLastLazadaFeedSession(cleaned, response.page, response.hasMore, results);
@@ -556,6 +560,7 @@ export function LinkSearchPage() {
       setSearchHasMore(false);
       setFeedMatched(false);
       setFeedMatchCount(0);
+      setFeedMatchCountExact(true);
       setSearchState("error");
     }
   }
@@ -1302,9 +1307,11 @@ export function LinkSearchPage() {
                           : "Searching Lazada via Smart Search…"
                         : searchResults.length > 0
                           ? affiliateMode && feedMatched
-                            ? feedMatchCount <= searchResults.length
-                              ? `Showing all ${feedMatchCount} match${feedMatchCount !== 1 ? "es" : ""}`
-                              : `Showing ${searchResults.length} of ${feedMatchCount} matches · page ${searchPage}`
+                            ? !feedMatchCountExact
+                              ? `Showing ${searchResults.length} matches · page ${searchPage}`
+                              : feedMatchCount <= searchResults.length
+                                ? `Showing all ${feedMatchCount} match${feedMatchCount !== 1 ? "es" : ""}`
+                                : `Showing ${searchResults.length} of ${feedMatchCount} matches · page ${searchPage}`
                             : `${searchResults.length} result${searchResults.length !== 1 ? "s" : ""} on page ${searchPage}`
                           : "No products found for this search"}
                     </p>

@@ -35,6 +35,7 @@ interface FeedCatalogResponse {
   page?: number;
   page_size?: number;
   total?: number;
+  total_exact?: boolean;
   has_more?: boolean;
   query?: string;
   products?: FeedCatalogProduct[];
@@ -49,6 +50,7 @@ export interface FeedCatalogPage {
   page: number;
   pageSize: number;
   total: number;
+  totalExact: boolean;
   hasMore: boolean;
   query: string;
   products: FeedCatalogProduct[];
@@ -82,6 +84,7 @@ export async function fetchLazadaFeedCatalog(options?: {
     res = await fetchApi(`/api/lazada-feed-catalog?${params}`, {
       timeoutMs: options?.sync ? 300_000 : 45_000,
       retries: options?.sync ? 0 : 4,
+      cache: options?.sync ? "no-store" : "default",
     });
   } catch {
     throw new Error(BFM_ERRORS.feedUnavailable);
@@ -97,6 +100,7 @@ export async function fetchLazadaFeedCatalog(options?: {
     page: data.page ?? page,
     pageSize: data.page_size ?? limit,
     total: typeof data.total === "number" ? data.total : 0,
+    totalExact: data.total_exact !== false,
     hasMore: Boolean(data.has_more),
     query: data.query ?? query,
     products: Array.isArray(data.products) ? data.products : [],
