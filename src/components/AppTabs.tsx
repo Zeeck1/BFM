@@ -1,8 +1,8 @@
-import { Briefcase, Heart, Link2, QrCode } from "lucide-react";
+import { Briefcase, Heart, QrCode, Search } from "lucide-react";
 import { NavLink } from "react-router-dom";
 
 export const APP_TABS = [
-  { to: "/", label: "Add Link", shortLabel: "Add", icon: Link2, end: true },
+  { to: "/", label: "Search", shortLabel: "Search", icon: Search, end: true },
   { to: "/wishlist", label: "Wishlist", shortLabel: "Saved", icon: Heart, end: false },
   { to: "/qr-codes", label: "QR Codes", shortLabel: "QR", icon: QrCode, end: false },
   {
@@ -17,13 +17,13 @@ export const APP_TABS = [
 function tabClassName(isActive: boolean, compact = false) {
   const base = compact
     ? "flex min-w-0 flex-1 flex-col items-center justify-center gap-0.5 px-1 py-2 transition-colors sm:gap-1 sm:px-2 sm:py-2.5"
-    : "flex shrink-0 items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-semibold transition-all xl:gap-2 xl:px-4 xl:py-2 xl:text-sm";
+    : "flex shrink-0 items-center gap-1.5 rounded-full px-3 py-2 text-xs font-semibold transition-all xl:gap-2 xl:px-4 xl:text-sm";
 
   if (isActive) {
-    return compact ? base : `${base} bg-slate-900 text-white shadow-sm`;
+    return compact ? base : `${base} bg-slate-950 text-white shadow-md shadow-slate-950/15`;
   }
 
-  return compact ? base : `${base} text-slate-600 hover:bg-slate-100 hover:text-slate-900`;
+  return compact ? base : `${base} text-slate-500 hover:bg-white hover:text-slate-900 hover:shadow-sm`;
 }
 
 function mobileLabelClass(isActive: boolean) {
@@ -42,7 +42,7 @@ export function AppTabs({ wishlistCount = 0, variant = "desktop", className = ""
   if (variant === "mobile") {
     return (
       <nav
-        className="fixed bottom-0 left-0 right-0 z-40 border-t border-slate-200 bg-white/95 pb-[env(safe-area-inset-bottom)] backdrop-blur-md lg:hidden"
+      className="fixed bottom-0 left-0 right-0 z-40 border-t border-slate-200/80 bg-white/90 pb-[env(safe-area-inset-bottom)] shadow-[0_-8px_30px_rgba(15,23,42,0.06)] backdrop-blur-xl lg:hidden"
         aria-label="Main navigation"
       >
         <div className="mx-auto flex w-full max-w-lg">
@@ -82,7 +82,7 @@ export function AppTabs({ wishlistCount = 0, variant = "desktop", className = ""
 
   return (
     <nav
-      className={`hidden min-w-0 items-center gap-0.5 overflow-x-auto rounded-xl border border-slate-200 bg-slate-50 p-0.5 [-ms-overflow-style:none] [scrollbar-width:none] lg:flex xl:gap-1 xl:p-1 [&::-webkit-scrollbar]:hidden ${className}`}
+      className={`hidden min-w-0 items-center gap-0.5 overflow-x-auto rounded-full border border-slate-200/80 bg-slate-100/80 p-1 shadow-inner [-ms-overflow-style:none] [scrollbar-width:none] lg:flex xl:gap-1 [&::-webkit-scrollbar]:hidden ${className}`}
       aria-label="Main navigation"
     >
       {APP_TABS.map(({ to, label, shortLabel, icon: Icon, end }) => (
