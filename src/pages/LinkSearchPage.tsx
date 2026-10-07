@@ -30,6 +30,7 @@ import { GuestSearchLimitModal } from "../components/GuestSearchLimitModal";
 import { ImageLightbox } from "../components/ImageLightbox";
 import { PlatformShowcase } from "../components/PlatformShowcase";
 import { ProductPreviewCard } from "../components/ProductPreviewCard";
+import { SearchNotFoundCard } from "../components/SearchNotFoundCard";
 import { SmartSearchAccessModal } from "../components/SmartSearchAccessModal";
 import { useExchangeRate } from "../hooks/useExchangeRate";
 import { useSavedItems } from "../contexts/SavedItemsProvider";
@@ -1313,9 +1314,11 @@ export function LinkSearchPage() {
                                 ? `Showing all ${feedMatchCount} match${feedMatchCount !== 1 ? "es" : ""}`
                                 : `Showing ${searchResults.length} of ${feedMatchCount} matches · page ${searchPage}`
                             : `${searchResults.length} result${searchResults.length !== 1 ? "s" : ""} on page ${searchPage}`
-                          : "No products found for this search"}
+                          : "ပစ္စည်းရှာမတွေ့ပါ — Messenger မှာ မေးနိုင်ပါတယ်"}
                     </p>
-                    <p className="text-[11px] text-slate-400">Tap product image to view full image.</p>
+                    {searchResults.length > 0 && (
+                      <p className="text-[11px] text-slate-400">Tap product image to view full image.</p>
+                    )}
                   </div>
                   {searchResults.length > 0 && (
                     <label className="relative inline-flex w-full items-center sm:w-auto">
@@ -1401,26 +1404,10 @@ export function LinkSearchPage() {
                       </button>
                     </div>
                   </>
-                ) : affiliateMode ? (
-                  <div className="relative overflow-hidden rounded-3xl border border-indigo-100 bg-gradient-to-br from-indigo-50 via-white to-violet-50 p-6 shadow-sm sm:p-8">
-                    <div className="pointer-events-none absolute -right-10 -top-10 h-36 w-36 rounded-full bg-indigo-200/30 blur-2xl" />
-                    <div className="pointer-events-none absolute -bottom-12 -left-8 h-32 w-32 rounded-full bg-violet-200/25 blur-2xl" />
-                    <div className="relative mx-auto flex max-w-lg flex-col items-center text-center">
-                      <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-white shadow-md shadow-indigo-100 ring-1 ring-indigo-100">
-                        <Search className="h-6 w-6 text-indigo-500" />
-                      </div>
-                      <p className="mt-4 text-[11px] font-semibold uppercase tracking-[0.14em] text-indigo-500">
-                        Not in Search
-                      </p>
-                      <h3 className="mt-2 text-lg font-bold tracking-tight text-slate-900 sm:text-xl">
-                        “{trimmedInput}” is not present here
-                      </h3>
-                      <p className="mt-2 text-sm leading-relaxed text-slate-600">
-                        That searched product data is not present in here. You can upgrade to{" "}
-                        <span className="font-semibold text-indigo-700">Smart Search</span> or search
-                        in an app.
-                      </p>
-                      <div className="mt-6 flex w-full flex-col gap-2.5 sm:flex-row sm:justify-center">
+                ) : (
+                  <SearchNotFoundCard>
+                    {affiliateMode && (
+                      <div className="mt-3 flex w-full flex-col gap-2 sm:flex-row sm:justify-center">
                         {SMART_SEARCH_ENABLED && (
                           <button
                             type="button"
@@ -1437,32 +1424,24 @@ export function LinkSearchPage() {
                                 }, 0);
                               }
                             }}
-                            className="inline-flex items-center justify-center gap-2 rounded-xl bg-indigo-600 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-indigo-600/20 transition hover:bg-indigo-500"
+                            className="inline-flex items-center justify-center gap-2 rounded-full border border-indigo-200 bg-white px-5 py-2.5 text-sm font-semibold text-indigo-700 transition hover:bg-indigo-50"
                           >
                             <Sparkles className="h-4 w-4" />
-                            Upgrade to Smart Search
-                            <ArrowRight className="h-4 w-4" />
+                            Smart Search
                           </button>
                         )}
                         <a
                           href={`https://www.lazada.co.th/catalog/?q=${encodeURIComponent(trimmedInput)}`}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-700 shadow-sm transition hover:border-slate-300 hover:bg-slate-50"
+                          className="inline-flex items-center justify-center gap-2 rounded-full border border-slate-200 bg-white px-5 py-2.5 text-sm font-semibold text-slate-600 transition hover:bg-slate-50"
                         >
                           <ExternalLink className="h-4 w-4" />
                           Search in an app
                         </a>
                       </div>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="rounded-2xl border border-dashed border-slate-200 bg-white p-8 text-center">
-                    <p className="text-sm font-semibold text-slate-700">No products found</p>
-                    <p className="mt-1 text-sm text-slate-400">
-                      Try a shorter keyword, English product name, or paste a product link.
-                    </p>
-                  </div>
+                    )}
+                  </SearchNotFoundCard>
                 )}
               </div>
             )}
