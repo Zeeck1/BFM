@@ -1,5 +1,6 @@
 import { supabase } from "./supabase";
 import type { OrderStatus, SavedLink } from "../types";
+import { toPointsNumber, type PointAdjustmentKind } from "./points";
 
 const PAGE_SIZE = 100;
 
@@ -14,6 +15,22 @@ export interface AdminProfile {
   role: "admin" | "user";
   /** Granted Smart Search access (admins always allowed regardless). */
   smart_search_enabled?: boolean;
+  /** BFM points balance (1 point = 1 THB). Read-only here; change via adjustUserPoints(). */
+  points?: number;
+  created_at: string;
+}
+
+export interface PointTransaction {
+  id: string;
+  user_id: string;
+  admin_id?: string | null;
+  admin_email?: string | null;
+  kind: PointAdjustmentKind;
+  amount: number;
+  delta: number;
+  balance_before: number;
+  balance_after: number;
+  reason: string;
   created_at: string;
 }
 
@@ -76,7 +93,7 @@ export async function loadAdminDashboard() {
   const [profilesWithAvatarResult, savedLinksResult, sharedListsResult, ordersResult, searchEventsResult] = await Promise.all([
     supabase
       .from("profiles")
-      .select("id,email,username,full_name,avatar_url,phone,address,role,smart_search_enabled,created_at")
+      .select("id,email,username,full_name,avatar_url,phone,address,role,smart_search_enabled,points,created_at")
       .order("created_at", { ascending: false })
       .range(0, PAGE_SIZE - 1),
     supabase
@@ -101,7 +118,7 @@ export async function loadAdminDashboard() {
       .range(0, PAGE_SIZE - 1),
   ]);
 
-  // Migration 020 adds avatar_url; 024 adds smart_search_enabled.
+  // Migration 020 adds avatar_url; 024 adds smart_search_enabled; user_points adds points.
   // Keep Admin usable if those migrations are not applied yet.
   let profilesResult: {
     data: AdminProfile[] | null;
@@ -112,6 +129,15 @@ export async function loadAdminDashboard() {
   };
 
   if (profilesWithAvatarResult.error?.code === "42703") {
+    profilesResult = await supabase
+      .from("profiles")
+      .select("id,email,username,full_name,avatar_url,phone,address,role,smart_search_enabled,created_at")
+      .order("created_at", { ascending: false })
+      .range(0, PAGE_SIZE - 1)
+      .then(({ data, error }) => ({ data: (data ?? null) as AdminProfile[] | null, error }));
+  }
+
+  if (profilesResult.error?.code === "42703") {
     const withoutSmartSearch = await supabase
       .from("profiles")
       .select("id,email,username,full_name,avatar_url,phone,address,role,created_at")
@@ -141,7 +167,10 @@ export async function loadAdminDashboard() {
   if (firstError) throw asError(firstError, "Could not load admin data.");
 
   return {
-    profiles: profilesResult.data ?? [],
+    profiles: (profilesResult.data ?? []).map((profile) => ({
+      ...profile,
+      points: toPointsNumber(profile.points),
+    })),
     savedLinks: (savedLinksResult.data ?? []) as SavedLink[],
     sharedLists: (sharedListsResult.data ?? []) as AdminSharedList[],
     orders: (ordersResult.data ?? []) as AdminOrder[],
@@ -155,6 +184,47 @@ export async function updateAdminProfile(
 ) {
   const { error } = await supabase.from("profiles").update(patch).eq("id", id);
   if (error) throw asError(error, "Could not update user.");
+}
+
+/**
+ * Change a user's points through the audited, admin-only database RPC.
+ * profiles.points cannot be written directly — the database rejects it.
+ */
+export async function adjustUserPoints(input: {
+  userId: string;
+  kind: PointAdjustmentKind;
+  amount: number;
+  reason: string;
+  expectedBalance: number;
+}): Promise<{ balance: number; transactionId: string }> {
+  const { data, error } = await supabase.rpc("admin_adjust_points", {
+    p_user_id: input.userId,
+    p_kind: input.kind,
+    p_amount: input.amount,
+    p_reason: input.reason.trim(),
+    p_expected_balance: input.expectedBalance,
+  });
+  if (error) throw asError(error, "Could not update points.");
+  const row = (Array.isArray(data) ? data[0] : data) as { balance?: unknown; transaction_id?: string } | null;
+  if (!row?.transaction_id) throw new Error("Could not confirm the points update.");
+  return { balance: toPointsNumber(row.balance), transactionId: row.transaction_id };
+}
+
+export async function loadUserPointTransactions(userId: string, limit = 50): Promise<PointTransaction[]> {
+  const { data, error } = await supabase
+    .from("point_transactions")
+    .select("id,user_id,admin_id,admin_email,kind,amount,delta,balance_before,balance_after,reason,created_at")
+    .eq("user_id", userId)
+    .order("created_at", { ascending: false })
+    .limit(limit);
+  if (error) throw asError(error, "Could not load point history.");
+  return (data ?? []).map((row) => ({
+    ...row,
+    amount: Number(row.amount),
+    delta: Number(row.delta),
+    balance_before: Number(row.balance_before),
+    balance_after: Number(row.balance_after),
+  })) as PointTransaction[];
 }
 
 export async function updateAdminSavedLink(

@@ -15,6 +15,7 @@ import { useAppShell } from "../components/appShell";
 import { userAvatarUrl, userDisplayName } from "../lib/auth";
 import { supabase } from "../lib/supabase";
 import { syncOwnerProfileInSharedLists } from "../lib/shareList";
+import { ProfilePointsSection } from "../components/profile/ProfilePointsSection";
 
 const MAX_AVATAR_BYTES = 2 * 1024 * 1024;
 
@@ -238,6 +239,9 @@ export function ProfilePage() {
         onChange={handleAvatarChange}
         className="sr-only"
       />
+
+      {/* Points & Rewards Section */}
+      <ProfilePointsSection user={user} />
 
       {/* Form card */}
       <div className="rounded-2xl border border-slate-100 bg-white p-6 shadow-sm">

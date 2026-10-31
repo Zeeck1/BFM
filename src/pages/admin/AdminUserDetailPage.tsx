@@ -10,12 +10,13 @@ import {
 } from "../../components/admin/AdminUi";
 import { AdminWishlistProductCard } from "../../components/admin/AdminWishlistProductCard";
 import { AdminUserAvatar } from "../../components/admin/AdminUserAvatar";
+import { AdminUserPointsPanel } from "../../components/admin/AdminUserPointsPanel";
 import { parseSearchHistoryQuery } from "../../lib/searchHistory";
 import { ORDER_STATUS_META } from "../../lib/utils";
 
 export function AdminUserDetailPage() {
   const { userId = "" } = useParams();
-  const { data, error } = useAdminData();
+  const { data, error, refresh } = useAdminData();
   if (!data) return null;
 
   const user = data.profiles.find((item) => item.id === userId);
@@ -78,6 +79,8 @@ export function AdminUserDetailPage() {
       </div>
 
       <div className="mt-6 grid gap-4 lg:grid-cols-2">
+        <AdminUserPointsPanel key={user.id} user={user} onChanged={refresh} />
+
         <Panel title="Wishlist products">
           {savedLinks.length === 0 && <AdminEmptyState message="No saved products." />}
           <div className="space-y-3">

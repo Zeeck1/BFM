@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
-import { ChevronRight } from "lucide-react";
+import { ChevronRight, Coins } from "lucide-react";
 import { useAdminData } from "../../contexts/AdminDataProvider";
 import {
   AdminEmptyState,
@@ -14,6 +14,7 @@ import {
 import { AdminUserAvatar } from "../../components/admin/AdminUserAvatar";
 import { updateAdminProfile } from "../../lib/admin";
 import { runAdminSave } from "../../lib/adminSave";
+import { formatPoints } from "../../lib/points";
 
 export function AdminUsersPage() {
   const { data, error, setError, refresh } = useAdminData();
@@ -67,7 +68,17 @@ export function AdminUsersPage() {
                   <p className="truncate text-xs text-slate-500">{item.email || item.id}</p>
                 </div>
               </div>
-              <span className="text-xs text-slate-400">{dateLabel(item.created_at)}</span>
+              <div className="flex items-center gap-2">
+                <Link
+                  to={`/adminteam/users/${item.id}`}
+                  title="Manage points"
+                  className="inline-flex items-center gap-1 rounded-full border border-amber-200/80 bg-amber-50 px-2.5 py-1 text-xs font-bold text-slate-800 hover:border-amber-300"
+                >
+                  <Coins className="h-3.5 w-3.5 text-amber-500" />
+                  {formatPoints(item.points ?? 0)}
+                </Link>
+                <span className="text-xs text-slate-400">{dateLabel(item.created_at)}</span>
+              </div>
             </div>
             <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
               <input name="full_name" defaultValue={item.full_name ?? ""} placeholder="Full name" className="admin-input" />
